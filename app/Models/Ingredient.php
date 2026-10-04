@@ -24,4 +24,24 @@ class Ingredient extends Model
     {
         return $this->hasMany(IngredientRestock::class);
     }
+
+    public function recipes()
+    {
+        return $this->belongsToMany(
+            Recipe::class,
+            'recipes_has_ingredients',
+            'ingredient_id',
+            'recipe_id'
+        );
+    }
+
+    public function productionOrders()
+    {
+        return $this->belongsToMany(
+            ProductionOrder::class,
+            'production_orders_has_ingredients',
+            'ingredient_id',
+            'production_order_id'
+        );
+    }
 }

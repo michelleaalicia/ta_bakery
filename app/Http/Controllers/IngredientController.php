@@ -35,8 +35,6 @@ class IngredientController extends Controller
             'branch_id' => ['required', 'exists:branches,id'],
             'name' => ['required', 'string', 'max:45'],
             'unit' => ['required', 'string', 'max:45'],
-            'unit_cost' => ['required', 'numeric', 'min:0'],
-            'stock' => ['required', 'numeric', 'min:0'],
             'min_stock' => ['required', 'numeric', 'min:0'],
         ]);
 
@@ -48,8 +46,8 @@ class IngredientController extends Controller
             'branch_id' => $branch->id,
             'name' => $request->name,
             'unit' => $request->unit,
-            'unit_cost' => $request->unit_cost,
-            'stock' => $request->stock,
+            'unit_cost' => 0,
+            'stock' => 0,
             'min_stock' => $request->min_stock,
         ]);
 
@@ -99,19 +97,34 @@ class IngredientController extends Controller
 
     public function destroy(Ingredient $ingredient)
     {
-        $this->checkTenant($ingredient);
+        if ($ingredient->branch->tenant_id != auth()->user()->tenant_id) {
+            abort(403);
+        }
 
+        if ($ingredient->recipes()->exists()) {
+            return redirect()
+                ->route('ingredients.index')
+                ->with('error', 'Bahan baku tidak dapat dihapus karena masih digunakan dalam resep.');
+        }
+
+        if ($ingredient->productionOrders()->exists()) {
+            return redirect()
+                ->route('ingredients.index')
+                ->with('error', 'Bahan baku tidak dapat dihapus karena sudah digunakan dalam produksi.');
+        }
+
+        $ingredient->restocks()->delete();
         $ingredient->delete();
 
         return redirect()
             ->route('ingredients.index')
             ->with('success', 'Bahan baku berhasil dihapus.');
     }
-
     private function checkTenant(Ingredient $ingredient)
     {
         if ($ingredient->branch->tenant_id != auth()->user()->tenant_id) {
             abort(403);
         }
     }
+
 }

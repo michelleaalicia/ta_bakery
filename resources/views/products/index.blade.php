@@ -8,8 +8,6 @@
     <div class="card">
 
         <div class="card-header d-flex justify-content-between align-items-center">
-            <h3 class="card-title">Daftar Produk</h3>
-
             <a href="{{ route('products.create') }}" class="btn btn-dark btn-sm">
                 Tambah Produk
             </a>
@@ -26,7 +24,7 @@
                         <th>Kategori</th>
                         <th>Deskripsi</th>
                         <th>Status</th>
-                        <th width="180">Aksi</th>
+                        <th style="width: 210px;">Aksi</th>
                     </tr>
                 </thead>
 

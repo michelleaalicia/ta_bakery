@@ -7,9 +7,7 @@
 
     <div class="card">
 
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h3 class="card-title">Daftar Kategori</h3>
-
+        <div class="card-header">
             <a href="{{ route('categories.create') }}" class="btn btn-dark btn-sm">
                 Tambah Kategori
             </a>
@@ -21,9 +19,9 @@
 
                 <thead>
                     <tr>
-                        <th width="60">No</th>
-                        <th>Nama Kategori</th>
-                        <th width="180">Aksi</th>
+                        <th style="width: 60px;">No</th>
+                        <th style="width: 350px;">Nama Kategori</th>
+                        <th style="width: 150px;">Aksi</th>
                     </tr>
                 </thead>
 
@@ -31,13 +29,10 @@
                     @forelse ($categories as $category)
                         <tr>
                             <td>{{ $loop->iteration }}</td>
+
                             <td>{{ $category->name }}</td>
 
                             <td>
-                                <a href="{{ route('categories.show', $category) }}" class="btn btn-info btn-sm">
-                                    Detail
-                                </a>
-
                                 <a href="{{ route('categories.edit', $category) }}" class="btn btn-warning btn-sm">
                                     Edit
                                 </a>

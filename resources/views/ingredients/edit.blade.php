@@ -7,10 +7,6 @@
 
     <div class="card">
 
-        <div class="card-header">
-            <h3 class="card-title">Ubah Bahan Baku</h3>
-        </div>
-
         <form method="POST" action="{{ route('ingredients.update', $ingredient->id) }}">
 
             @csrf

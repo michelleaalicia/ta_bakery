@@ -44,9 +44,6 @@ class BranchController extends Controller
 
     public function show(Branch $branch)
     {
-        $this->checkTenant($branch);
-
-        return view('branches.show', compact('branch'));
     }
 
     public function edit(Branch $branch)

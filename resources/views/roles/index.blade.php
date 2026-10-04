@@ -8,8 +8,6 @@
     <div class="card">
 
         <div class="card-header d-flex justify-content-between align-items-center">
-            <h3 class="card-title">Daftar Role</h3>
-
             <a href="{{ route('roles.create') }}" class="btn btn-dark btn-sm">
                 Tambah Role
             </a>

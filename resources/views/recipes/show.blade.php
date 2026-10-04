@@ -7,21 +7,6 @@
 
     <div class="card">
 
-        <div class="card-header d-flex justify-content-between">
-
-            <h3 class="card-title">
-                Detail Resep
-            </h3>
-
-            <a href="{{ route('recipes.edit', $recipe->id) }}" class="btn btn-dark btn-sm">
-
-                Ubah
-
-            </a>
-
-        </div>
-
-
         <div class="card-body">
 
             <div class="row mb-3">
@@ -49,8 +34,8 @@
 
                 <div class="col-md-9">
 
-                    {{ $recipe->quantity }} pcs
-
+                    {{ rtrim(rtrim(number_format($recipe->quantity, 2, ',', '.'), '0'), ',') }}
+                    {{ $recipe->unit }}
                 </div>
 
             </div>
@@ -97,7 +82,7 @@
                                 </td>
 
                                 <td>
-                                    {{ $ingredient->pivot->quantity }}
+                                    {{ rtrim(rtrim(number_format($ingredient->pivot->quantity, 2, ',', '.'), '0'), ',') }}
                                 </td>
 
                                 <td>

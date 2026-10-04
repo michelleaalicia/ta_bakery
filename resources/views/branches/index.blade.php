@@ -8,8 +8,6 @@
     <div class="card">
 
         <div class="card-header d-flex justify-content-between align-items-center">
-            <h3 class="card-title">Daftar Cabang</h3>
-
             <a href="{{ route('branches.create') }}" class="btn btn-dark btn-sm">
                 Tambah Cabang
             </a>
@@ -40,10 +38,6 @@
                             <td>{{ $branch->phone_number }}</td>
 
                             <td>
-                                <a href="{{ route('branches.show', $branch) }}" class="btn btn-info btn-sm">
-                                    Detail
-                                </a>
-
                                 <a href="{{ route('branches.edit', $branch) }}" class="btn btn-warning btn-sm">
                                     Edit
                                 </a>

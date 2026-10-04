@@ -6,11 +6,6 @@
 @section('content')
 
     <div class="card">
-
-        <div class="card-header">
-            <h3 class="card-title">Restock Bahan Baku</h3>
-        </div>
-
         <form method="POST" action="{{ route('ingredient-restocks.store') }}">
 
             @csrf

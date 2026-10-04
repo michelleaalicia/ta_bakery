@@ -6,11 +6,6 @@
 @section('content')
 
     <div class="card">
-
-        <div class="card-header">
-            <h3 class="card-title">Tambah Role</h3>
-        </div>
-
         <form method="POST" action="{{ route('roles.store') }}">
             @csrf
 

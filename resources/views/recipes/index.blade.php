@@ -9,8 +9,6 @@
 
         <div class="card-header d-flex justify-content-between align-items-center">
 
-            <h3 class="card-title">Daftar Resep</h3>
-
             <a href="{{ route('recipes.create') }}" class="btn btn-dark btn-sm">
 
                 <i class="bi bi-plus"></i>
@@ -28,10 +26,11 @@
 
                     <thead>
                         <tr>
+                            <th style="width: 60px;">No</th>
                             <th>Produk - Varian</th>
                             <th>Hasil Resep</th>
-                            <th>Jumlah Bahan</th>
-                            <th>Aksi</th>
+                            <th>Bahan Baku</th>
+                            <th style="width: 150px;">Aksi</th>
                         </tr>
                     </thead>
 
@@ -40,7 +39,7 @@
                         @forelse ($recipes as $recipe)
 
                             <tr>
-
+                                <td>{{ $loop->iteration }}</td>
                                 <td>
                                     {{ $recipe->productVariant->product->name }}
                                     -
@@ -48,7 +47,7 @@
                                 </td>
 
                                 <td>
-                                    {{ $recipe->quantity }}
+                                    {{ rtrim(rtrim(number_format($recipe->quantity, 2, ',', '.'), '0'), ',') }}
                                     {{ $recipe->unit }}
                                 </td>
 
@@ -74,7 +73,7 @@
                         @empty
 
                             <tr>
-                                <td colspan="4" class="text-center text-muted">
+                                <td colspan="5" class="text-center text-muted">
 
                                     Belum ada resep.
 

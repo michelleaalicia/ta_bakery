@@ -40,6 +40,7 @@ class User extends Authenticatable
         'tenant_id',
         'role_id',
         'branch_id',
+        'wage_rate_per_hour',
         'status',
     ];
 

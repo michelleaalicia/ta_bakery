@@ -45,6 +45,76 @@
             color: #000000 !important;
             font-weight: 600;
         }
+
+        /* Form */
+        .form-control,
+        .form-select {
+            border: 1px solid #adb5bd !important;
+            border-radius: 6px;
+            background-color: #ffffff;
+        }
+
+        .form-control::placeholder {
+            color: #8a8a8a;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #6c757d !important;
+            box-shadow: 0 0 0 0.15rem rgba(108, 117, 125, 0.15) !important;
+        }
+
+        .form-label {
+            font-weight: 500;
+            color: #212529;
+        }
+
+        .form-text {
+            color: #6c757d;
+            font-size: 13px;
+        }
+
+        /* Header */
+        .navbar-module-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #212529;
+            margin-left: 4px;
+        }
+
+        .navbar-user {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .navbar-user-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #212529;
+        }
+
+        .navbar-user-info {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.2;
+        }
+
+        .navbar-user-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .navbar-user-role {
+            font-size: 11px;
+            color: #6c757d;
+        }
     </style>
 </head>
 
@@ -54,25 +124,56 @@
 
         {{-- Navbar --}}
         <nav class="app-header navbar navbar-expand bg-body">
+
             <div class="container-fluid">
 
+                {{-- Kiri --}}
                 <ul class="navbar-nav">
+
                     <li class="nav-item">
                         <a class="nav-link" data-lte-toggle="sidebar" href="#">
-                            ☰
+                            <i class="bi bi-list"></i>
                         </a>
                     </li>
-                </ul>
 
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <span class="nav-link">
-                            {{ auth()->user()->name }}
+                    <li class="nav-item d-flex align-items-center">
+                        <span class="navbar-module-title">
+                            @yield('page-title', 'Dashboard')
                         </span>
                     </li>
+
+                </ul>
+
+
+                {{-- Kanan --}}
+                <ul class="navbar-nav ms-auto">
+
+                    <li class="nav-item">
+                        <div class="navbar-user">
+
+                            <div class="navbar-user-icon">
+                                <i class="bi bi-person"></i>
+                            </div>
+
+                            <div class="navbar-user-info">
+
+                                <span class="navbar-user-name">
+                                    {{ auth()->user()->name }}
+                                </span>
+
+                                <span class="navbar-user-role">
+                                    {{ auth()->user()->role?->name ?? '-' }}
+                                </span>
+
+                            </div>
+
+                        </div>
+                    </li>
+
                 </ul>
 
             </div>
+
         </nav>
 
         {{-- Sidebar --}}
@@ -198,8 +299,9 @@
                         @endif
                         @if ($modules->contains('Produksi'))
                             <li class="nav-item">
-                                <a href="#" class="nav-link">
-                                    <i class="nav-icon bi bi-bar-chart-steps"></i>
+                                <a href="{{ route('production_orders.index') }}"
+                                    class="nav-link {{ request()->routeIs('production_orders.*') ? 'active' : '' }}">
+                                    <i class="nav-icon bi bi-gear"></i>
                                     <p>Produksi</p>
                                 </a>
                             </li>
@@ -321,12 +423,10 @@
                         {{-- AKUN --}}
                         <li class="nav-header">AKUN</li>
 
-                        <li class="nav-item">
-                            <a href="#" class="nav-link">
-                                <i class="nav-icon bi bi-person"></i>
-                                <p>Profil</p>
-                            </a>
-                        </li>
+                        <a href="{{ route('profile.password') }}" class="nav-link">
+                            <i class="nav-icon bi bi-person"></i>
+                            <p>Profil</p>
+                        </a>
 
                         <li class="nav-item">
                             <form method="POST" action="{{ route('logout') }}">

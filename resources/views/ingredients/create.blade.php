@@ -7,10 +7,6 @@
 
     <div class="card">
 
-        <div class="card-header">
-            <h3 class="card-title">Tambah Bahan Baku</h3>
-        </div>
-
         <form method="POST" action="{{ route('ingredients.store') }}">
             @csrf
 
@@ -50,22 +46,6 @@
 
                     <input type="text" name="unit" value="{{ old('unit') }}" class="form-control"
                         placeholder="Contoh: kg, pcs, liter" required>
-                </div>
-
-
-                <div class="mb-3">
-                    <label class="form-label">Harga Satuan</label>
-
-                    <input type="number" name="unit_cost" value="{{ old('unit_cost', 0) }}" class="form-control" min="0"
-                        required>
-                </div>
-
-
-                <div class="mb-3">
-                    <label class="form-label">Stok Awal</label>
-
-                    <input type="number" name="stock" value="{{ old('stock', 0) }}" class="form-control" min="0" step="0.01"
-                        required>
                 </div>
 
 
