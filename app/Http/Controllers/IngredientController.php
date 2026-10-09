@@ -11,9 +11,7 @@ class IngredientController extends Controller
     public function index()
     {
         $ingredients = Ingredient::with('branch')
-            ->whereHas('branch', function ($query) {
-                $query->where('tenant_id', auth()->user()->tenant_id);
-            })
+            ->where('tenant_id', auth()->user()->tenant_id)
             ->get();
 
         return view('ingredients.index', compact('ingredients'));
@@ -31,19 +29,33 @@ class IngredientController extends Controller
 
     public function store(Request $request)
     {
+        $tenantId = auth()->user()->tenant_id;
+
+        $hasBranches = Branch::where('tenant_id', $tenantId)->exists();
+
         $request->validate([
-            'branch_id' => ['required', 'exists:branches,id'],
+            'branch_id' => [
+                $hasBranches ? 'required' : 'nullable',
+                'exists:branches,id',
+            ],
             'name' => ['required', 'string', 'max:45'],
             'unit' => ['required', 'string', 'max:45'],
             'min_stock' => ['required', 'numeric', 'min:0'],
         ]);
 
-        $branch = Branch::where('id', $request->branch_id)
-            ->where('tenant_id', auth()->user()->tenant_id)
-            ->firstOrFail();
+        $branchId = null;
+
+        if ($request->filled('branch_id')) {
+            $branch = Branch::where('id', $request->branch_id)
+                ->where('tenant_id', $tenantId)
+                ->firstOrFail();
+
+            $branchId = $branch->id;
+        }
 
         Ingredient::create([
-            'branch_id' => $branch->id,
+            'tenant_id' => $tenantId,
+            'branch_id' => $branchId,
             'name' => $request->name,
             'unit' => $request->unit,
             'unit_cost' => 0,
@@ -72,19 +84,32 @@ class IngredientController extends Controller
     {
         $this->checkTenant($ingredient);
 
+        $tenantId = auth()->user()->tenant_id;
+
+        $hasBranches = Branch::where('tenant_id', $tenantId)->exists();
+
         $request->validate([
-            'branch_id' => ['required', 'exists:branches,id'],
+            'branch_id' => [
+                $hasBranches ? 'required' : 'nullable',
+                'exists:branches,id',
+            ],
             'name' => ['required', 'string', 'max:45'],
             'unit' => ['required', 'string', 'max:45'],
             'min_stock' => ['required', 'numeric', 'min:0'],
         ]);
 
-        $branch = Branch::where('id', $request->branch_id)
-            ->where('tenant_id', auth()->user()->tenant_id)
-            ->firstOrFail();
+        $branchId = null;
+
+        if ($request->filled('branch_id')) {
+            $branch = Branch::where('id', $request->branch_id)
+                ->where('tenant_id', $tenantId)
+                ->firstOrFail();
+
+            $branchId = $branch->id;
+        }
 
         $ingredient->update([
-            'branch_id' => $branch->id,
+            'branch_id' => $branchId,
             'name' => $request->name,
             'unit' => $request->unit,
             'min_stock' => $request->min_stock,
@@ -97,20 +122,24 @@ class IngredientController extends Controller
 
     public function destroy(Ingredient $ingredient)
     {
-        if ($ingredient->branch->tenant_id != auth()->user()->tenant_id) {
-            abort(403);
-        }
+        $this->checkTenant($ingredient);
 
         if ($ingredient->recipes()->exists()) {
             return redirect()
                 ->route('ingredients.index')
-                ->with('error', 'Bahan baku tidak dapat dihapus karena masih digunakan dalam resep.');
+                ->with(
+                    'error',
+                    'Bahan baku tidak dapat dihapus karena masih digunakan dalam resep.'
+                );
         }
 
         if ($ingredient->productionOrders()->exists()) {
             return redirect()
                 ->route('ingredients.index')
-                ->with('error', 'Bahan baku tidak dapat dihapus karena sudah digunakan dalam produksi.');
+                ->with(
+                    'error',
+                    'Bahan baku tidak dapat dihapus karena sudah digunakan dalam produksi.'
+                );
         }
 
         $ingredient->restocks()->delete();
@@ -120,11 +149,11 @@ class IngredientController extends Controller
             ->route('ingredients.index')
             ->with('success', 'Bahan baku berhasil dihapus.');
     }
+
     private function checkTenant(Ingredient $ingredient)
     {
-        if ($ingredient->branch->tenant_id != auth()->user()->tenant_id) {
+        if ($ingredient->tenant_id != auth()->user()->tenant_id) {
             abort(403);
         }
     }
-
 }

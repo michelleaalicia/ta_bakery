@@ -72,29 +72,33 @@
                 </div>
 
                 {{-- Cabang --}}
-                <div class="mb-3">
-                    <label for="branch_id" class="form-label">
-                        Cabang
-                    </label>
+                {{-- Cabang --}}
+                @if ($branches->count() > 0)
+                    <div class="mb-3">
+                        <label for="branch_id" class="form-label">
+                            Cabang
+                        </label>
 
-                    <select name="branch_id" id="branch_id" class="form-select @error('branch_id') is-invalid @enderror"
-                        required>
+                        <select name="branch_id" id="branch_id" class="form-select @error('branch_id') is-invalid @enderror"
+                            required>
 
-                        <option value="">Pilih cabang</option>
+                            <option value="">Pilih cabang</option>
 
-                        @foreach ($branches as $branch)
-                            <option value="{{ $branch->id }}" {{ old('branch_id') == $branch->id ? 'selected' : '' }}>
-                                {{ $branch->name }}
-                            </option>
-                        @endforeach
-                    </select>
+                            @foreach ($branches as $branch)
+                                <option value="{{ $branch->id }}" {{ old('branch_id') == $branch->id ? 'selected' : '' }}>
+                                    {{ $branch->name }}
+                                </option>
+                            @endforeach
 
-                    @error('branch_id')
-                        <div class="invalid-feedback">
-                            {{ $message }}
-                        </div>
-                    @enderror
-                </div>
+                        </select>
+
+                        @error('branch_id')
+                            <div class="invalid-feedback">
+                                {{ $message }}
+                            </div>
+                        @enderror
+                    </div>
+                @endif
 
                 {{-- Tarif Upah/Jam --}}
                 <div class="mb-3">

@@ -87,11 +87,16 @@ class UserController extends Controller
             'wage_rate_per_hour' => $request->wage_rate_per_hour,
         ]);
 
+        $hasBranches = Branch::where('tenant_id', $tenantId)->exists();
+
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'role_id' => ['required', 'exists:roles,id'],
-            'branch_id' => ['required', 'exists:branches,id'],
+            'branch_id' => [
+                $hasBranches ? 'required' : 'nullable',
+                'exists:branches,id',
+            ],
             'wage_rate_per_hour' => ['required', 'numeric', 'min:0'],
             'status' => ['required', 'in:active,inactive'],
         ]);
@@ -102,14 +107,19 @@ class UserController extends Controller
             ->where('tenant_id', $tenantId)
             ->firstOrFail();
 
-        $branch = Branch::where('id', $request->branch_id)
-            ->where('tenant_id', $tenantId)
-            ->firstOrFail();
+        $branchId = null;
 
+        if ($request->filled('branch_id')) {
+            $branch = Branch::where('id', $request->branch_id)
+                ->where('tenant_id', $tenantId)
+                ->firstOrFail();
+
+            $branchId = $branch->id;
+        }
         $user = User::create([
             'tenant_id' => $tenantId,
             'role_id' => $role->id,
-            'branch_id' => $branch->id,
+            'branch_id' => $branchId,
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($password),
@@ -211,11 +221,16 @@ class UserController extends Controller
             'wage_rate_per_hour' => str_replace('.', '', $request->wage_rate_per_hour),
         ]);
 
+        $hasBranches = Branch::where('tenant_id', $tenantId)->exists();
+
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
             'role_id' => ['required', 'exists:roles,id'],
-            'branch_id' => ['required', 'exists:branches,id'],
+            'branch_id' => [
+                $hasBranches ? 'required' : 'nullable',
+                'exists:branches,id',
+            ],
             'wage_rate_per_hour' => ['required', 'numeric', 'min:0'],
             'status' => ['required', 'in:active,inactive'],
         ]);
@@ -225,15 +240,21 @@ class UserController extends Controller
             ->where('name', '!=', 'Owner')
             ->firstOrFail();
 
-        $branch = Branch::where('id', $request->branch_id)
-            ->where('tenant_id', $tenantId)
-            ->firstOrFail();
+        $branchId = null;
+
+        if ($request->filled('branch_id')) {
+            $branch = Branch::where('id', $request->branch_id)
+                ->where('tenant_id', $tenantId)
+                ->firstOrFail();
+
+            $branchId = $branch->id;
+        }
 
         $user->update([
             'name' => $request->name,
             'email' => $request->email,
             'role_id' => $role->id,
-            'branch_id' => $branch->id,
+            'branch_id' => $branchId,
             'wage_rate_per_hour' => $request->wage_rate_per_hour,
             'status' => $request->status,
         ]);

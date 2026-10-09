@@ -8,10 +8,6 @@
 
     <div class="card">
 
-        <div class="card-header">
-            <h3 class="card-title">Edit Pengguna</h3>
-        </div>
-
         <form action="{{ route('users.update', $user) }}" method="POST">
             @csrf
             @method('PUT')
@@ -22,14 +18,8 @@
                 <div class="mb-3">
                     <label for="name" class="form-label">Nama</label>
 
-                    <input
-                        type="text"
-                        name="name"
-                        id="name"
-                        class="form-control @error('name') is-invalid @enderror"
-                        value="{{ old('name', $user->name) }}"
-                        placeholder="Masukkan nama pengguna"
-                        required>
+                    <input type="text" name="name" id="name" class="form-control @error('name') is-invalid @enderror"
+                        value="{{ old('name', $user->name) }}" placeholder="Masukkan nama pengguna" required>
 
                     @error('name')
                         <div class="invalid-feedback">
@@ -42,14 +32,8 @@
                 <div class="mb-3">
                     <label for="email" class="form-label">Email</label>
 
-                    <input
-                        type="email"
-                        name="email"
-                        id="email"
-                        class="form-control @error('email') is-invalid @enderror"
-                        value="{{ old('email', $user->email) }}"
-                        placeholder="Masukkan email pengguna"
-                        required>
+                    <input type="email" name="email" id="email" class="form-control @error('email') is-invalid @enderror"
+                        value="{{ old('email', $user->email) }}" placeholder="Masukkan email pengguna" required>
 
                     @error('email')
                         <div class="invalid-feedback">
@@ -62,18 +46,12 @@
                 <div class="mb-3">
                     <label for="role_id" class="form-label">Role</label>
 
-                    <select
-                        name="role_id"
-                        id="role_id"
-                        class="form-select @error('role_id') is-invalid @enderror"
-                        required>
+                    <select name="role_id" id="role_id" class="form-select @error('role_id') is-invalid @enderror" required>
 
                         <option value="">Pilih Role</option>
 
                         @foreach ($roles as $role)
-                            <option
-                                value="{{ $role->id }}"
-                                {{ old('role_id', $user->role_id) == $role->id ? 'selected' : '' }}>
+                            <option value="{{ $role->id }}" {{ old('role_id', $user->role_id) == $role->id ? 'selected' : '' }}>
                                 {{ $role->name }}
                             </option>
                         @endforeach
@@ -88,33 +66,33 @@
                 </div>
 
                 {{-- Cabang --}}
-                <div class="mb-3">
-                    <label for="branch_id" class="form-label">Cabang</label>
+                {{-- Cabang --}}
+                @if ($branches->count() > 0)
+                    <div class="mb-3">
+                        <label for="branch_id" class="form-label">
+                            Cabang
+                        </label>
 
-                    <select
-                        name="branch_id"
-                        id="branch_id"
-                        class="form-select @error('branch_id') is-invalid @enderror"
-                        required>
+                        <select name="branch_id" id="branch_id" class="form-select @error('branch_id') is-invalid @enderror"
+                            required>
 
-                        <option value="">Pilih Cabang</option>
+                            <option value="">Pilih cabang</option>
 
-                        @foreach ($branches as $branch)
-                            <option
-                                value="{{ $branch->id }}"
-                                {{ old('branch_id', $user->branch_id) == $branch->id ? 'selected' : '' }}>
-                                {{ $branch->name }}
-                            </option>
-                        @endforeach
+                            @foreach ($branches as $branch)
+                                <option value="{{ $branch->id }}" {{ old('branch_id', $user->branch_id) == $branch->id ? 'selected' : '' }}>
+                                    {{ $branch->name }}
+                                </option>
+                            @endforeach
 
-                    </select>
+                        </select>
 
-                    @error('branch_id')
-                        <div class="invalid-feedback">
-                            {{ $message }}
-                        </div>
-                    @enderror
-                </div>
+                        @error('branch_id')
+                            <div class="invalid-feedback">
+                                {{ $message }}
+                            </div>
+                        @enderror
+                    </div>
+                @endif
 
                 {{-- Tarif Upah --}}
                 <div class="mb-3">
@@ -125,14 +103,10 @@
                     <div class="input-group">
                         <span class="input-group-text">Rp</span>
 
-                        <input
-                            type="text"
-                            name="wage_rate_per_hour"
-                            id="wage_rate_per_hour"
+                        <input type="text" name="wage_rate_per_hour" id="wage_rate_per_hour"
                             class="form-control @error('wage_rate_per_hour') is-invalid @enderror"
                             value="{{ old('wage_rate_per_hour', number_format($user->wage_rate_per_hour, 0, ',', '.')) }}"
-                            placeholder="Masukkan tarif upah per jam"
-                            required>
+                            placeholder="Masukkan tarif upah per jam" required>
                     </div>
 
                     @error('wage_rate_per_hour')
@@ -146,21 +120,13 @@
                 <div class="mb-3">
                     <label for="status" class="form-label">Status</label>
 
-                    <select
-                        name="status"
-                        id="status"
-                        class="form-select @error('status') is-invalid @enderror"
-                        required>
+                    <select name="status" id="status" class="form-select @error('status') is-invalid @enderror" required>
 
-                        <option
-                            value="active"
-                            {{ old('status', $user->status) === 'active' ? 'selected' : '' }}>
+                        <option value="active" {{ old('status', $user->status) === 'active' ? 'selected' : '' }}>
                             Aktif
                         </option>
 
-                        <option
-                            value="inactive"
-                            {{ old('status', $user->status) === 'inactive' ? 'selected' : '' }}>
+                        <option value="inactive" {{ old('status', $user->status) === 'inactive' ? 'selected' : '' }}>
                             Nonaktif
                         </option>
 

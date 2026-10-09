@@ -9,11 +9,13 @@ class ProductionOrder extends Model
     protected $fillable = [
         'product_variant_id',
         'branch_id',
+        'batch_count',
         'order_type',
         'quantity',
         'production_date',
         'status',
         'bop_cost',
+        'hpp_per_unit',
         'profit_percentage',
         'selling_price',
         'notes',

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Ingredient extends Model
 {
     protected $fillable = [
+        'tenant_id',
         'branch_id',
         'name',
         'unit',
@@ -14,6 +15,11 @@ class Ingredient extends Model
         'stock',
         'min_stock',
     ];
+
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class);
+    }
 
     public function branch()
     {

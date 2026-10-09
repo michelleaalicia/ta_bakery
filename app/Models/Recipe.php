@@ -10,6 +10,7 @@ class Recipe extends Model
         'product_variant_id',
         'quantity',
         'unit',
+        'production_time',
         'steps',
     ];
     public function productVariant()

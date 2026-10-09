@@ -87,6 +87,26 @@
 
                 </div>
 
+                {{-- Waktu Produksi --}}
+                <div class="mb-3">
+                    <label class="form-label">
+                        Waktu Produksi
+                    </label>
+
+                    <div class="input-group">
+                        <input type="number" name="production_time" class="form-control" min="1" step="1"
+                            value="{{ old('production_time') }}" placeholder="Contoh: 60" required>
+
+                        <span class="input-group-text">
+                            menit
+                        </span>
+                    </div>
+
+                    <small class="text-muted">
+                        Waktu yang dibutuhkan untuk menghasilkan satu kali resep.
+                    </small>
+                </div>
+
                 {{-- Langkah Pembuatan --}}
                 <div class="mb-3">
                     <label class="form-label">
@@ -112,7 +132,6 @@
                     </button>
 
                 </div>
-
 
                 <div id="ingredient-container">
 
@@ -216,90 +235,90 @@
         function addIngredient() {
             let html = `
 
-                                            <div class="ingredient-row border rounded p-3 mb-2">
+                                                <div class="ingredient-row border rounded p-3 mb-2">
 
-                                                <div class="row align-items-end">
+                                                    <div class="row align-items-end">
 
-                                                    <div class="col-md-6">
+                                                        <div class="col-md-6">
 
-                                                        <label class="form-label">
-                                                            Bahan
-                                                        </label>
+                                                            <label class="form-label">
+                                                                Bahan
+                                                            </label>
 
-                                                        <select
-                                                            name="ingredients[${ingredientIndex}][ingredient_id]"
-                                                            class="form-select ingredient-select"
-                                                            onchange="updateUnit(this)"
-                                                            required>
+                                                            <select
+                                                                name="ingredients[${ingredientIndex}][ingredient_id]"
+                                                                class="form-select ingredient-select"
+                                                                onchange="updateUnit(this)"
+                                                                required>
 
-                                                            <option value="">
-                                                                Pilih Bahan
-                                                            </option>
-
-                                                            @foreach ($ingredients as $ingredient)
-
-                                                                <option
-                                                                    value="{{ $ingredient->id }}"
-                                                                    data-unit="{{ $ingredient->unit }}">
-
-                                                                    {{ $ingredient->name }}
-                                                                    - {{ $ingredient->branch->name }}
-
+                                                                <option value="">
+                                                                    Pilih Bahan
                                                                 </option>
 
-                                                            @endforeach
+                                                                @foreach ($ingredients as $ingredient)
 
-                                                        </select>
+                                                                    <option
+                                                                        value="{{ $ingredient->id }}"
+                                                                        data-unit="{{ $ingredient->unit }}">
 
-                                                    </div>
+                                                                        {{ $ingredient->name }}
+                                                                        - {{ $ingredient->branch->name }}
 
+                                                                    </option>
 
-                                                    <div class="col-md-3">
+                                                                @endforeach
 
-                                                        <label class="form-label">
-                                                            Jumlah
-                                                        </label>
+                                                            </select>
 
-                                                        <input type="number"
-                                                               name="ingredients[${ingredientIndex}][quantity]"
-                                                               class="form-control"
-                                                               min="0.01"
-                                                               step="0.01"
-                                                               required>
-
-                                                    </div>
+                                                        </div>
 
 
-                                                    <div class="col-md-2">
+                                                        <div class="col-md-3">
 
-                                                        <label class="form-label">
-                                                            Satuan
-                                                        </label>
+                                                            <label class="form-label">
+                                                                Jumlah
+                                                            </label>
 
-                                                        <input type="text"
-                                                               class="form-control ingredient-unit"
-                                                               readonly>
+                                                            <input type="number"
+                                                                   name="ingredients[${ingredientIndex}][quantity]"
+                                                                   class="form-control"
+                                                                   min="0.01"
+                                                                   step="0.01"
+                                                                   required>
 
-                                                    </div>
+                                                        </div>
 
 
-                                                    <div class="col-md-1">
+                                                        <div class="col-md-2">
 
-                                                        <button type="button"
-                                                                class="btn btn-outline-danger"
-                                                                onclick="removeIngredient(this)">
+                                                            <label class="form-label">
+                                                                Satuan
+                                                            </label>
 
-                                                            <i class="bi bi-trash"></i>
+                                                            <input type="text"
+                                                                   class="form-control ingredient-unit"
+                                                                   readonly>
 
-                                                        </button>
+                                                        </div>
+
+
+                                                        <div class="col-md-1">
+
+                                                            <button type="button"
+                                                                    class="btn btn-outline-danger"
+                                                                    onclick="removeIngredient(this)">
+
+                                                                <i class="bi bi-trash"></i>
+
+                                                            </button>
+
+                                                        </div>
 
                                                     </div>
 
                                                 </div>
 
-                                            </div>
-
-                                        `;
+                                            `;
 
             document
                 .getElementById('ingredient-container')

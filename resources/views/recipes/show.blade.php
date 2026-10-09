@@ -16,11 +16,9 @@
                 </div>
 
                 <div class="col-md-9">
-
                     {{ $recipe->productVariant->product->name }}
                     /
                     {{ $recipe->productVariant->name }}
-
                 </div>
 
             </div>
@@ -33,9 +31,21 @@
                 </div>
 
                 <div class="col-md-9">
-
                     {{ rtrim(rtrim(number_format($recipe->quantity, 2, ',', '.'), '0'), ',') }}
                     {{ $recipe->unit }}
+                </div>
+
+            </div>
+
+
+            <div class="row mb-3">
+
+                <div class="col-md-3">
+                    <strong>Waktu Produksi</strong>
+                </div>
+
+                <div class="col-md-9">
+                    {{ $recipe->production_time }} menit
                 </div>
 
             </div>
@@ -47,7 +57,9 @@
                     <strong>Langkah Pembuatan</strong>
                 </div>
 
-                <div class="col-md-9" style="white-space: pre-line;">{{ $recipe->steps }}</div>
+                <div class="col-md-9" style="white-space: pre-line;">
+                    {{ $recipe->steps }}
+                </div>
 
             </div>
 
@@ -105,9 +117,7 @@
         <div class="card-footer">
 
             <a href="{{ route('recipes.index') }}" class="btn btn-secondary">
-
                 Kembali
-
             </a>
 
         </div>

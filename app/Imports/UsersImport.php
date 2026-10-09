@@ -24,12 +24,25 @@ class UsersImport implements ToModel
             throw new \Exception('Role "' . $row[2] . '" tidak ditemukan.');
         }
 
-        $branch = Branch::where('name', $row[3])
-            ->where('tenant_id', $tenantId)
-            ->first();
+        $branchId = null;
 
-        if (!$branch) {
-            throw new \Exception('Cabang "' . $row[3] . '" tidak ditemukan.');
+        // Jika tenant memiliki cabang, nama cabang wajib diisi
+        $hasBranches = Branch::where('tenant_id', $tenantId)->exists();
+
+        if ($hasBranches) {
+            if (empty($row[3])) {
+                throw new \Exception('Cabang wajib diisi.');
+            }
+
+            $branch = Branch::where('name', $row[3])
+                ->where('tenant_id', $tenantId)
+                ->first();
+
+            if (!$branch) {
+                throw new \Exception('Cabang "' . $row[3] . '" tidak ditemukan.');
+            }
+
+            $branchId = $branch->id;
         }
 
         $password = Str::random(8);
@@ -39,7 +52,7 @@ class UsersImport implements ToModel
             'name' => $row[0],
             'email' => $row[1],
             'role_id' => $role->id,
-            'branch_id' => $branch->id,
+            'branch_id' => $branchId,
             'wage_rate_per_hour' => $row[4],
             'password' => Hash::make($password),
             'status' => 'active',

@@ -60,6 +60,12 @@ class RecipeController extends Controller
                 'in:pcs,loyang,bungkus,box,toples,kg,gram,liter,botol'
             ],
 
+            'production_time' => [
+                'required',
+                'numeric',
+                'gt:0'
+            ],
+
             'steps' => [
                 'required',
                 'string'
@@ -94,6 +100,7 @@ class RecipeController extends Controller
             'product_variant_id' => $variant->id,
             'quantity' => $request->quantity,
             'unit' => $request->unit,
+            'production_time' => $request->production_time,
             'steps' => $request->steps,
         ]);
 
@@ -173,6 +180,12 @@ class RecipeController extends Controller
             'unit' => [
                 'required',
                 'in:pcs,loyang,bungkus,box,toples,kg,gram,liter,botol'
+            ],
+
+            'production_time' => [
+                'required',
+                'numeric',
+                'gt:0'
             ],
 
             'steps' => [
