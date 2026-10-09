@@ -14,7 +14,7 @@ return new class extends Migration {
 
     public function down(): void
     {
-        Schema::table('product_variants', function (Blueprint $table) {
+        Schema::table('product_vari ants', function (Blueprint $table) {
             $table->dropColumn('price');
         });
     }
