@@ -214,6 +214,7 @@ class RecipeController extends Controller
         $recipe->update([
             'quantity' => $request->quantity,
             'unit' => $request->unit,
+            'production_time' => $request->production_time,
             'steps' => $request->steps,
         ]);
 

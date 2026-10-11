@@ -169,13 +169,18 @@
 
                                     <label class="form-label">Pekerjaan</label>
 
-                                    <input
-                                        type="text"
+                                    <select
                                         name="employees[{{ $index }}][job_description]"
-                                        value="{{ $user->pivot->job_description }}"
-                                        class="form-control"
-                                        placeholder="Contoh: Membuat adonan"
+                                        class="form-select"
                                         required>
+                                        <option value="">Pilih pekerjaan</option>
+                                        @foreach ($jobDescriptions as $jobDescription)
+                                            <option value="{{ $jobDescription->name }}"
+                                                {{ old('employees.' . $index . '.job_description', $user->pivot->job_description) == $jobDescription->name ? 'selected' : '' }}>
+                                                {{ $jobDescription->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
 
                                 </div>
 
@@ -299,7 +304,13 @@
     const addEmployeeButton = document.getElementById('add-employee');
 
     const employeeContainer = document.getElementById('employee-container');
+    const jobDescriptions = @json($jobDescriptions->pluck('name')->values());
 
+    function populateJobDescriptions(select) {
+        jobDescriptions.forEach(name => {
+            select.add(new Option(name, name));
+        });
+    }
 
     function filterEmployees(select) {
 
@@ -396,12 +407,12 @@
 
                     <label class="form-label">Pekerjaan</label>
 
-                    <input
-                        type="text"
+                    <select
                         name="employees[${employeeIndex}][job_description]"
-                        class="form-control"
-                        placeholder="Contoh: Membuat adonan"
+                        class="form-select job-description-select"
                         required>
+                        <option value="">Pilih pekerjaan</option>
+                    </select>
 
                 </div>
 
@@ -438,7 +449,9 @@
         employeeContainer.appendChild(row);
 
         const newSelect = row.querySelector('.employee-select');
+        const jobSelect = row.querySelector('.job-description-select');
 
+        populateJobDescriptions(jobSelect);
         filterEmployees(newSelect);
 
         employeeIndex++;

@@ -8,53 +8,68 @@ use App\Models\Branch;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
-class UsersImport implements ToModel
+class UsersImport implements ToModel, WithHeadingRow
 {
     public function model(array $row)
     {
         $tenantId = auth()->user()->tenant_id;
 
-        $role = Role::where('name', $row[2])
+        $name = trim($row['nama'] ?? '');
+        $email = trim($row['email'] ?? '');
+        $roleName = trim($row['role'] ?? '');
+        $branchName = trim($row['cabang_opsional'] ?? '');
+        $wage = $row['tarif_upah_jam'] ?? null;
+
+        if ($name === '' || $email === '' || $roleName === '') {
+            throw new \Exception('Nama, Email, dan Role wajib diisi.');
+        }
+
+        if (User::where('email', $email)->exists()) {
+            throw new \Exception('Email ' . $email . ' sudah digunakan.');
+        }
+
+        if (!is_numeric($wage) || $wage < 0) {
+            throw new \Exception('Tarif Upah/Jam untuk ' . $name . ' harus berupa angka minimal 0.');
+        }
+
+        $role = Role::where('name', $roleName)
             ->where('tenant_id', $tenantId)
             ->where('name', '!=', 'Owner')
             ->first();
 
         if (!$role) {
-            throw new \Exception('Role "' . $row[2] . '" tidak ditemukan.');
+            throw new \Exception('Role "' . $roleName . '" tidak ditemukan.');
         }
 
         $branchId = null;
-
-        // Jika tenant memiliki cabang, nama cabang wajib diisi
         $hasBranches = Branch::where('tenant_id', $tenantId)->exists();
 
         if ($hasBranches) {
-            if (empty($row[3])) {
-                throw new \Exception('Cabang wajib diisi.');
+            if ($branchName === '') {
+                throw new \Exception('Cabang wajib diisi untuk pengguna ' . $name . '.');
             }
 
-            $branch = Branch::where('name', $row[3])
+            $branch = Branch::where('name', $branchName)
                 ->where('tenant_id', $tenantId)
                 ->first();
 
             if (!$branch) {
-                throw new \Exception('Cabang "' . $row[3] . '" tidak ditemukan.');
+                throw new \Exception('Cabang "' . $branchName . '" tidak ditemukan.');
             }
 
             $branchId = $branch->id;
         }
 
-        $password = Str::random(8);
-
         return new User([
             'tenant_id' => $tenantId,
-            'name' => $row[0],
-            'email' => $row[1],
+            'name' => $name,
+            'email' => $email,
             'role_id' => $role->id,
             'branch_id' => $branchId,
-            'wage_rate_per_hour' => $row[4],
-            'password' => Hash::make($password),
+            'wage_rate_per_hour' => $wage,
+            'password' => Hash::make(Str::random(8)),
             'status' => 'active',
         ]);
     }

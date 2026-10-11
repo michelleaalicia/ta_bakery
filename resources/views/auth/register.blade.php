@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Daftar sebagai Owner - Sistem Bakery</title>
+    <title>Daftar - Sistem Bakery</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -28,10 +28,6 @@
                 <h1 class="text-xl font-bold text-gray-900">
                     Sistem Bakery
                 </h1>
-
-                <p class="text-sm font-medium text-gray-700 mt-0.5">
-                    Daftar sebagai Owner
-                </p>
 
                 <p class="text-xs text-gray-500 mt-1 text-center">
                     Daftarkan bakery Anda untuk mulai menggunakan sistem.
@@ -190,7 +186,7 @@
                 {{-- BUTTON --}}
                 <button type="submit"
                     class="w-full h-[42px] bg-gray-900 text-white text-sm font-semibold rounded hover:bg-gray-700 transition">
-                    Daftar sebagai Owner
+                    Daftar
                 </button>
 
             </form>

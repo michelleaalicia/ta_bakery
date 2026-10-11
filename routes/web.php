@@ -12,12 +12,11 @@ use App\Http\Controllers\IngredientRestockController;
 use App\Http\Controllers\RecipeController;
 use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\ProductionOrderController;
+use App\Http\Controllers\JobDescriptionController;
 
-Route::get('/', function () {
-    return redirect()->route('login');
-});
+Route::view('/', 'landing')->name('landing');
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'verified'])->group(function () {
 
     // Dashboard
     Route::get('/dashboard', function () {
@@ -33,12 +32,20 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('module:Manajemen Pengguna')
         ->name('users.import.store');
 
+    Route::get('/users/import/template', [UserController::class, 'downloadTemplate'])
+        ->middleware('module:Manajemen Pengguna')
+        ->name('users.import.template');
+
     Route::resource('users', UserController::class)
         ->middleware('module:Manajemen Pengguna');
 
     Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])
         ->middleware('module:Manajemen Pengguna')
         ->name('users.reset-password');
+
+    Route::resource('job-descriptions', JobDescriptionController::class)
+        ->except(['show'])
+        ->middleware('module:Job Description');
 
     // Profil
     Route::get('/profile/password', [UserController::class, 'passwordEdit'])

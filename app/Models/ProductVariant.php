@@ -23,4 +23,9 @@ class ProductVariant extends Model
     {
         return $this->hasOne(Recipe::class);
     }
+
+    public function stocks()
+    {
+        return $this->hasMany(ProductVariantStock::class);
+    }
 }

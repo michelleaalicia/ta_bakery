@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use App\Models\ProductVariant;
+use App\Models\Branch;
 use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
@@ -13,6 +14,7 @@ class ProductController extends Controller
     public function index()
     {
         $products = Product::with('category')
+            ->withCount('variants')
             ->where('tenant_id', auth()->user()->tenant_id)
             ->get();
 
@@ -91,9 +93,18 @@ class ProductController extends Controller
     {
         $this->checkTenant($product);
 
-        $product->load('category', 'variants');
+        $tenantId = auth()->user()->tenant_id;
 
-        return view('products.show', compact('product'));
+        $product->load([
+            'category',
+            'variants.stocks.branch',
+        ]);
+
+        $branches = Branch::where('tenant_id', $tenantId)
+            ->orderBy('name')
+            ->get();
+
+        return view('products.show', compact('product', 'branches'));
     }
 
     public function edit(Product $product)

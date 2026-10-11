@@ -27,6 +27,10 @@
                 <a href="{{ route('roles.index') }}" class="btn btn-dark btn-sm">
                     Kelola Role
                 </a>
+
+                <a href="{{ route('job-descriptions.index') }}" class="btn btn-dark btn-sm">
+                    Kelola Pekerjaan
+                </a>
             </div>
         </div>
 

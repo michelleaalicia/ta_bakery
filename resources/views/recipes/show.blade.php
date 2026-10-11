@@ -45,7 +45,7 @@
                 </div>
 
                 <div class="col-md-9">
-                    {{ $recipe->production_time }} menit
+                    {{ rtrim(rtrim(number_format($recipe->production_time, 2, ',', '.'), '0'), ',') }} menit
                 </div>
 
             </div>

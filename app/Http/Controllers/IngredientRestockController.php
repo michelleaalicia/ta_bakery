@@ -5,15 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Ingredient;
 use App\Models\IngredientRestock;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class IngredientRestockController extends Controller
 {
     public function create()
     {
         $ingredients = Ingredient::with('branch')
-            ->whereHas('branch', function ($query) {
-                $query->where('tenant_id', auth()->user()->tenant_id);
-            })
+            ->where('tenant_id', auth()->user()->tenant_id)
+            ->orderBy('name')
             ->get();
 
         return view('ingredient_restocks.create', compact('ingredients'));
@@ -22,44 +22,44 @@ class IngredientRestockController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'ingredient_id' => ['required', 'exists:ingredients,id'],
+            'ingredient_id' => ['required', 'integer'],
             'quantity' => ['required', 'numeric', 'gt:0'],
             'unit_price' => ['required', 'numeric', 'min:0'],
             'restock_date' => ['required', 'date'],
         ]);
 
         $ingredient = Ingredient::where('id', $request->ingredient_id)
-            ->whereHas('branch', function ($query) {
-                $query->where('tenant_id', auth()->user()->tenant_id);
-            })
+            ->where('tenant_id', auth()->user()->tenant_id)
             ->firstOrFail();
 
-        // Hitung nilai stok lama
-        $oldTotal = $ingredient->stock * $ingredient->unit_cost;
+        DB::transaction(function () use ($request, $ingredient) {
+            // Hitung nilai stok lama
+            $oldTotal = $ingredient->stock * $ingredient->unit_cost;
 
-        // Hitung nilai restock
-        $newTotal = $request->quantity * $request->unit_price;
+            // Hitung nilai pembelian baru
+            $newTotal = $request->quantity * $request->unit_price;
 
-        // Hitung stok baru
-        $newStock = $ingredient->stock + $request->quantity;
+            // Hitung stok setelah restock
+            $newStock = $ingredient->stock + $request->quantity;
 
-        // Hitung harga rata-rata baru
-        $newUnitCost = ($oldTotal + $newTotal) / $newStock;
+            // Hitung harga rata-rata per satuan
+            $newUnitCost = ($oldTotal + $newTotal) / $newStock;
 
-        // Simpan riwayat restock
-        IngredientRestock::create([
-            'ingredient_id' => $ingredient->id,
-            'quantity' => $request->quantity,
-            'unit_price' => $request->unit_price,
-            'total_cost' => $newTotal,
-            'restock_date' => $request->restock_date,
-        ]);
+            // Simpan riwayat restock
+            IngredientRestock::create([
+                'ingredient_id' => $ingredient->id,
+                'quantity' => $request->quantity,
+                'unit_price' => $request->unit_price,
+                'total_cost' => $newTotal,
+                'restock_date' => $request->restock_date,
+            ]);
 
-        // Update stok dan harga rata-rata
-        $ingredient->update([
-            'stock' => $newStock,
-            'unit_cost' => $newUnitCost,
-        ]);
+            // Perbarui stok dan harga rata-rata
+            $ingredient->update([
+                'stock' => $newStock,
+                'unit_cost' => $newUnitCost,
+            ]);
+        });
 
         return redirect()
             ->route('ingredients.index')

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use App\Imports\UsersImport;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\UsersTemplateExport;
 
 class UserController extends Controller
 {
@@ -130,6 +131,14 @@ class UserController extends Controller
         return redirect()
             ->route('users.index')
             ->with('success', 'Pengguna berhasil ditambahkan. Password awal: ' . $password);
+    }
+
+    public function downloadTemplate()
+    {
+        return Excel::download(
+            new UsersTemplateExport,
+            'template_pengguna.xlsx'
+        );
     }
 
     public function passwordEdit()

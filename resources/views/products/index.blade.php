@@ -22,6 +22,7 @@
                         <th width="60">No</th>
                         <th>Nama Produk</th>
                         <th>Kategori</th>
+                        <th>Jumlah Varian</th>
                         <th>Deskripsi</th>
                         <th>Status</th>
                         <th style="width: 210px;">Aksi</th>
@@ -36,6 +37,7 @@
                             <td>{{ $loop->iteration }}</td>
                             <td>{{ $product->name }}</td>
                             <td>{{ $product->category?->name ?? '-' }}</td>
+                            <td>{{ $product->variants_count }}</td>
                             <td>{{ $product->description ?? '-' }}</td>
 
                             <td>
@@ -72,7 +74,7 @@
                     @empty
 
                         <tr>
-                            <td colspan="6" class="text-center">
+                            <td colspan="7" class="text-center">
                                 Belum ada produk.
                             </td>
                         </tr>

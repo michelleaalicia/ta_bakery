@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Product;
 use App\Models\Branch;
+use App\Models\JobDescription;
 use App\Models\ProductionOrder;
 use App\Models\ProductVariant;
+use App\Models\ProductVariantStock;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ProductionOrderController extends Controller
@@ -65,7 +69,10 @@ class ProductionOrderController extends Controller
             $ingredients
         );
 
-        DB::transaction(function () use ($data, $variant, $branch, $recipe, $users, $ingredients, $costs) {
+        $sellingPrice = $costs['hppPerUnit'] *
+            (1 + ((float) $data['profit_percentage'] / 100));
+
+        DB::transaction(function () use ($data, $variant, $branch, $users, $ingredients, $costs, $sellingPrice) {
             $productionOrder = ProductionOrder::create([
                 'product_variant_id' => $variant->id,
                 'branch_id' => $branch?->id,
@@ -77,6 +84,7 @@ class ProductionOrderController extends Controller
                 'bop_cost' => $data['bop_cost'],
                 'profit_percentage' => $data['profit_percentage'],
                 'hpp_per_unit' => $costs['hppPerUnit'],
+                'selling_price' => round($sellingPrice, 2),
                 'notes' => $data['notes'] ?? null,
             ]);
 
@@ -277,54 +285,98 @@ class ProductionOrderController extends Controller
         );
     }
 
-    private function completeProduction(
-        ProductionOrder $productionOrder
-    ) {
-        $productionOrder->load([
-            'ingredients',
-            'productVariant',
-        ]);
-
+    private function completeProduction(ProductionOrder $productionOrder)
+    {
         try {
             DB::transaction(function () use ($productionOrder) {
-                // Cek stok terlebih dahulu
-                foreach ($productionOrder->ingredients as $ingredient) {
-                    if (
-                        $ingredient->stock <
-                        $ingredient->pivot->quantity_used
-                    ) {
+                // Kunci data produksi agar tidak diproses selesai dua kali bersamaan.
+                $order = ProductionOrder::whereKey($productionOrder->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($order->status !== 'in_progress') {
+                    throw new \RuntimeException(
+                        'Produksi ini sudah diproses atau statusnya tidak sesuai.'
+                    );
+                }
+
+                $order->load(['ingredients', 'productVariant']);
+
+                // Periksa semua stok bahan sebelum mengurangi stok.
+                foreach ($order->ingredients as $ingredient) {
+                    $lockedIngredient = $ingredient->newQuery()
+                        ->whereKey($ingredient->id)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                    if ($lockedIngredient->stock < $ingredient->pivot->quantity_used) {
                         throw new \RuntimeException(
-                            'Stok ' .
-                            $ingredient->name .
-                            ' tidak mencukupi.'
+                            'Stok ' . $ingredient->name . ' tidak mencukupi.'
                         );
                     }
                 }
 
-                // Kurangi stok
-                foreach ($productionOrder->ingredients as $ingredient) {
-                    $ingredient->decrement(
+                // Kurangi stok bahan baku.
+                foreach ($order->ingredients as $ingredient) {
+                    $lockedIngredient = $ingredient->newQuery()
+                        ->whereKey($ingredient->id)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                    $lockedIngredient->decrement(
                         'stock',
                         $ingredient->pivot->quantity_used
                     );
                 }
 
-                // Ubah status
-                $productionOrder->update([
-                    'status' => 'completed'
+                // Kunci varian agar dua produksi untuk varian yang sama tidak membuat stok ganda.
+                $variant = ProductVariant::whereKey($order->product_variant_id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                // Tambahkan hasil produksi ke stok produk jadi sesuai cabang.
+                $stockQuery = ProductVariantStock::where(
+                    'product_variant_id',
+                    $order->product_variant_id
+                );
+
+                if ($order->branch_id) {
+                    $stockQuery->where('branch_id', $order->branch_id);
+                } else {
+                    $stockQuery->whereNull('branch_id');
+                }
+
+                $productStock = $stockQuery->lockForUpdate()->first();
+
+                if ($productStock) {
+                    $productStock->increment('stock', $order->quantity);
+                } else {
+                    ProductVariantStock::create([
+                        'product_variant_id' => $order->product_variant_id,
+                        'branch_id' => $order->branch_id,
+                        'stock' => $order->quantity,
+                    ]);
+                }
+
+                // Simpan status selesai sebelum menghitung ulang HPP.
+
+                $order->update([
+                    'status' => 'completed',
+                    'selling_price' => round(
+                        (float) $order->hpp_per_unit *
+                        (1 + ((float) $order->profit_percentage / 100)),
+                        2
+                    ),
                 ]);
 
-                // Update rata-rata HPP dan harga jual
                 $this->updateAverageHppAndSellingPrice(
-                    $productionOrder->productVariant,
-                    $productionOrder->profit_percentage
+                    $variant,
+                    (float) $order->profit_percentage
                 );
+
             });
         } catch (\RuntimeException $e) {
-            return back()->with(
-                'error',
-                $e->getMessage()
-            );
+            return back()->with('error', $e->getMessage());
         } catch (\Throwable $e) {
             report($e);
 
@@ -336,7 +388,7 @@ class ProductionOrderController extends Controller
 
         return back()->with(
             'success',
-            'Produksi selesai dan stok bahan baku berhasil diperbarui.'
+            'Produksi selesai. Stok bahan baku berkurang dan stok produk jadi bertambah.'
         );
     }
 
@@ -383,7 +435,7 @@ class ProductionOrderController extends Controller
 
             return;
         }
-        
+
         if (
             !$productionOrder->productVariant ||
             !$productionOrder->productVariant->product ||
@@ -403,6 +455,15 @@ class ProductionOrderController extends Controller
             ->whereHas('recipe')
             ->get();
 
+
+        $variantOptions = $variants->map(function ($variant) {
+            return [
+                'id' => $variant->id,
+                'product_id' => $variant->product_id,
+                'name' => $variant->name,
+            ];
+        })->values();
+
         $branches = Branch::where(
             'tenant_id',
             $this->tenantId()
@@ -418,10 +479,25 @@ class ProductionOrderController extends Controller
             })
             ->get();
 
+        $products = Product::where('tenant_id', $this->tenantId())
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get();
+
+        $jobDescriptions = JobDescription::where(
+            'tenant_id',
+            $this->tenantId()
+        )
+            ->orderBy('name')
+            ->get();
+
         return compact(
+            'products',
             'variants',
+            'variantOptions',
             'branches',
-            'users'
+            'users',
+            'jobDescriptions'
         );
     }
 
@@ -495,7 +571,8 @@ class ProductionOrderController extends Controller
             'employees.*.job_description' => [
                 'required',
                 'string',
-                'max:255'
+                Rule::exists('job_descriptions', 'name')
+                    ->where('tenant_id', $this->tenantId())
             ],
 
             'employees.*.labor_hours' => [
@@ -619,15 +696,20 @@ class ProductionOrderController extends Controller
         )
             ->where('status', 'completed')
             ->where('hpp_per_unit', '>', 0)
-            ->avg('hpp_per_unit');
+            ->where('quantity', '>', 0)
+            ->selectRaw(
+                'SUM(hpp_per_unit * quantity) / SUM(quantity) as average_hpp'
+            )
+            ->value('average_hpp');
 
-        if (!$averageHpp) {
+        if ($averageHpp === null) {
             return;
         }
 
-        $sellingPrice =
-            $averageHpp +
-            ($averageHpp * ($profitPercentage / 100));
+        $averageHpp = (float) $averageHpp;
+
+        $sellingPrice = $averageHpp *
+            (1 + ($profitPercentage / 100));
 
         $variant->update([
             'price' => round($sellingPrice, 2),
