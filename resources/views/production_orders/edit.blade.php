@@ -80,21 +80,24 @@
 
             </div>
 
+            
+{{-- Tanggal Produksi --}}
+<div class="mb-3">
+    <label for="production_date" class="form-label">
+        Tanggal Produksi
+    </label>
 
-            {{-- Tanggal --}}
-            <div class="mb-3">
+    <input type="date"
+           id="production_date"
+           name="production_date"
+           class="form-control"
+           value="{{ old('production_date', \Carbon\Carbon::parse($productionOrder->production_date)->format('Y-m-d')) }}"
+           required>
 
-                <label class="form-label">Tanggal Produksi</label>
-
-                <input
-                    type="date"
-                    name="production_date"
-                    value="{{ old('production_date', $productionOrder->production_date) }}"
-                    class="form-control"
-                    required>
-
-            </div>
-
+    <div class="form-text">
+        Periksa kembali tanggal sebelum menyimpan perubahan jadwal.
+    </div>
+</div>
 
             {{-- BOP --}}
             <div class="mb-3">

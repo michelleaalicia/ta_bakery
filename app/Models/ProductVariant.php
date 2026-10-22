@@ -28,4 +28,16 @@ class ProductVariant extends Model
     {
         return $this->hasMany(ProductVariantStock::class);
     }
+
+
+    public function sales()
+    {
+        return $this->belongsToMany(
+            Sale::class,
+            'sales_has_product_variants',
+            'product_variant_id',
+            'sale_id'
+        )->withPivot('quantity', 'unit_price');
+    }
+
 }

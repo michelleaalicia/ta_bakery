@@ -5,101 +5,101 @@
 
 @section('content')
 
+    <style>
+        .ingredient-row .btn-remove {
+            height: 38px;
+            width: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ingredient-unit {
+            background-color: #f1f3f5 !important;
+        }
+    </style>
+
     <div class="card">
-
         <form method="POST" action="{{ route('recipes.store') }}">
-
             @csrf
 
             <div class="card-body">
 
-                {{-- Produk - Varian --}}
+                @if ($errors->any())
+                    <div class="alert alert-danger">
+                        {{ $errors->first() }}
+                    </div>
+                @endif
+
                 <div class="mb-3">
+                    <label for="product_id" class="form-label">Produk</label>
 
-                    <label class="form-label">
-                        Produk - Varian
-                    </label>
+                    <select id="product_id" class="form-select" required>
+                        <option value="">Pilih Produk</option>
 
-                    <select name="product_variant_id" class="form-select" required>
+                        @foreach ($variants->pluck('product')->filter()->unique('id')->sortBy('name') as $product)
+                            <option value="{{ $product->id }}">
+                                {{ $product->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
 
-                        <option value="">
-                            Pilih Produk - Varian
-                        </option>
+                <div class="mb-3">
+                    <label for="product_variant_id" class="form-label">Varian</label>
+
+                    <select name="product_variant_id" id="product_variant_id" class="form-select" required disabled>
+
+                        <option value="">Pilih Produk Terlebih Dahulu</option>
 
                         @foreach ($variants as $variant)
-
-                            <option value="{{ $variant->id }}">
-
-                                {{ $variant->product->name }}
-                                /
+                            <option value="{{ $variant->id }}" data-product-id="{{ $variant->product_id }}">
                                 {{ $variant->name }}
-
                             </option>
-
                         @endforeach
 
                     </select>
 
+                    @error('product_variant_id')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                    @enderror
                 </div>
 
-
-                {{-- Hasil Resep --}}
                 <div class="mb-3">
+                    <label class="form-label">Hasil Resep</label>
 
-                    <label class="form-label">
-                        Hasil Resep
-                    </label>
-
-                    <div class="row">
-
+                    <div class="row g-3">
                         <div class="col-md-6">
                             <input type="number" name="quantity" class="form-control" min="0.01" step="0.01"
-                                placeholder="Contoh: 20" required>
+                                value="{{ old('quantity') }}" placeholder="Contoh: 20" required>
                         </div>
 
                         <div class="col-md-6">
-
                             <select name="unit" class="form-select" required>
+                                <option value="">Pilih Satuan</option>
 
-                                <option value="">
-                                    Pilih Satuan
-                                </option>
-
-                                <option value="pcs">pcs</option>
-                                <option value="loyang">loyang</option>
-                                <option value="bungkus">bungkus</option>
-                                <option value="box">box</option>
-                                <option value="toples">toples</option>
-                                <option value="kg">kg</option>
-                                <option value="gram">gram</option>
-                                <option value="liter">liter</option>
-                                <option value="botol">botol</option>
-
+                                @foreach (['pcs', 'loyang', 'bungkus', 'box', 'toples', 'kg', 'gram', 'liter', 'botol'] as $unit)
+                                    <option value="{{ $unit }}" @selected(old('unit') === $unit)>
+                                        {{ $unit }}
+                                    </option>
+                                @endforeach
                             </select>
-
                         </div>
-
                     </div>
 
                     <small class="text-muted">
                         Jumlah produk yang dihasilkan dari satu kali resep.
                     </small>
-
                 </div>
 
-                {{-- Waktu Produksi --}}
                 <div class="mb-3">
-                    <label class="form-label">
-                        Waktu Produksi
-                    </label>
+                    <label class="form-label">Waktu Produksi</label>
 
                     <div class="input-group">
                         <input type="number" name="production_time" class="form-control" min="1" step="1"
                             value="{{ old('production_time') }}" placeholder="Contoh: 60" required>
 
-                        <span class="input-group-text">
-                            menit
-                        </span>
+                        <span class="input-group-text">menit</span>
                     </div>
 
                     <small class="text-muted">
@@ -107,112 +107,77 @@
                     </small>
                 </div>
 
-                {{-- Langkah Pembuatan --}}
                 <div class="mb-3">
-                    <label class="form-label">
-                        Langkah Pembuatan
-                    </label>
+                    <label class="form-label">Langkah Pembuatan</label>
 
                     <textarea name="steps" class="form-control" rows="3" placeholder="Tulis langkah-langkah pembuatan..."
-                        required></textarea>
+                        required>{{ old('steps') }}</textarea>
                 </div>
 
-                {{-- Bahan --}}
                 <div class="d-flex justify-content-between align-items-center mb-2">
-
-                    <label class="form-label mb-0">
-                        Bahan Baku
-                    </label>
+                    <label class="form-label mb-0">Bahan Baku</label>
 
                     <button type="button" class="btn btn-dark btn-sm" onclick="addIngredient()">
-
                         <i class="bi bi-plus"></i>
                         Tambah Bahan
-
                     </button>
-
                 </div>
 
                 <div id="ingredient-container">
 
-                    <div class="ingredient-row border rounded p-3 mb-2">
+                    @foreach (old('ingredients', [['ingredient_id' => '', 'quantity' => '']]) as $index => $oldIngredient)
+                        <div class="ingredient-row border rounded p-3 mb-2">
 
-                        <div class="row align-items-end">
+                            <div class="row g-3 align-items-end">
 
-                            <div class="col-md-6">
+                                <div class="col-md-6">
+                                    <label class="form-label">Bahan</label>
 
-                                <label class="form-label">
-                                    Bahan
-                                </label>
+                                    <select name="ingredients[{{ $index }}][ingredient_id]"
+                                        class="form-select ingredient-select" onchange="updateUnit(this)" required>
 
-                                <select name="ingredients[0][ingredient_id]" class="form-select ingredient-select"
-                                    onchange="updateUnit(this)" required>
+                                        <option value="">Pilih Bahan</option>
 
-                                    <option value="">
-                                        Pilih Bahan
-                                    </option>
+                                        @foreach ($ingredients as $ingredient)
+                                            <option value="{{ $ingredient->id }}" data-unit="{{ $ingredient->unit }}"
+                                                @selected(($oldIngredient['ingredient_id'] ?? '') == $ingredient->id)>
+                                                {{ $ingredient->name }}
+                                            </option>
+                                        @endforeach
 
-                                    @foreach ($ingredients as $ingredient)
+                                    </select>
+                                </div>
 
-                                        <option value="{{ $ingredient->id }}" data-unit="{{ $ingredient->unit }}">
+                                <div class="col-md-3">
+                                    <label class="form-label">Jumlah</label>
 
-                                            {{ $ingredient->name }}
-                                            - {{ $ingredient->branch->name }}
+                                    <input type="number" name="ingredients[{{ $index }}][quantity]" class="form-control"
+                                        min="0.01" step="0.01" value="{{ $oldIngredient['quantity'] ?? '' }}"
+                                        placeholder="Jumlah bahan" required>
+                                </div>
 
-                                        </option>
+                                <div class="col-md-2">
+                                    <label class="form-label">Satuan</label>
 
-                                    @endforeach
+                                    <input type="text" class="form-control ingredient-unit" readonly>
+                                </div>
 
-                                </select>
-
-                            </div>
-
-
-                            <div class="col-md-3">
-
-                                <label class="form-label">
-                                    Jumlah
-                                </label>
-
-                                <input type="number" name="ingredients[0][quantity]" class="form-control" min="0.01"
-                                    step="0.01" required>
-
-                            </div>
-
-
-                            <div class="col-md-2">
-
-                                <label class="form-label">
-                                    Satuan
-                                </label>
-
-                                <input type="text" class="form-control ingredient-unit" style="background-color: #f1f3f5;"
-                                    readonly>
+                                <div class="col-md-1">
+                                    <button type="button" class="btn btn-outline-danger btn-remove"
+                                        onclick="removeIngredient(this)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
 
                             </div>
-
-
-                            <div class="col-md-1">
-
-                                <button type="button" class="btn btn-outline-danger" onclick="removeIngredient(this)">
-
-                                    <i class="bi bi-trash"></i>
-
-                                </button>
-
-                            </div>
-
                         </div>
-
-                    </div>
+                    @endforeach
 
                 </div>
 
             </div>
 
-
             <div class="card-footer">
-
                 <a href="{{ route('recipes.index') }}" class="btn btn-secondary">
                     Batal
                 </a>
@@ -220,129 +185,114 @@
                 <button type="submit" class="btn btn-dark">
                     Simpan
                 </button>
-
             </div>
 
         </form>
-
     </div>
 
-
     <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const productSelect = document.getElementById('product_id');
+            const variantSelect = document.getElementById('product_variant_id');
 
-        let ingredientIndex = 1;
+            const variants = Array.from(variantSelect.querySelectorAll('option'))
+                .filter(option => option.value)
+                .map(option => option.cloneNode(true));
+
+            const oldVariantId = @json(old('product_variant_id'));
+
+            function updateVariants(selectedId = '') {
+                const productId = productSelect.value;
+
+                variantSelect.innerHTML = '';
+
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = productId
+                    ? 'Pilih Varian'
+                    : 'Pilih Produk Terlebih Dahulu';
+
+                variantSelect.appendChild(placeholder);
+                variantSelect.disabled = !productId;
+
+                variants.forEach(function (option) {
+                    if (option.dataset.productId === productId) {
+                        variantSelect.appendChild(option.cloneNode(true));
+                    }
+                });
+
+                if (selectedId) {
+                    variantSelect.value = String(selectedId);
+                }
+            }
+
+            productSelect.addEventListener('change', function () {
+                updateVariants();
+            });
+
+            if (oldVariantId) {
+                const oldVariant = variants.find(option =>
+                    option.value === String(oldVariantId)
+                );
+
+                if (oldVariant) {
+                    productSelect.value = oldVariant.dataset.productId;
+                    updateVariants(oldVariantId);
+                }
+            } else {
+                updateVariants();
+            }
+
+            document.querySelectorAll('.ingredient-select').forEach(function (select) {
+                updateUnit(select);
+            });
+        });
+
+        let ingredientIndex = 1000;
 
         function addIngredient() {
-            let html = `
+            const container = document.getElementById('ingredient-container');
+            const firstRow = container.querySelector('.ingredient-row');
 
-                                                <div class="ingredient-row border rounded p-3 mb-2">
+            if (!firstRow) {
+                return;
+            }
 
-                                                    <div class="row align-items-end">
+            const newRow = firstRow.cloneNode(true);
 
-                                                        <div class="col-md-6">
+            newRow.querySelectorAll('select, input').forEach(function (field) {
+                if (field.name) {
+                    field.name = field.name.replace(
+                        /ingredients\[\d+\]/,
+                        'ingredients[' + ingredientIndex + ']'
+                    );
+                }
 
-                                                            <label class="form-label">
-                                                                Bahan
-                                                            </label>
+                field.value = '';
+            });
 
-                                                            <select
-                                                                name="ingredients[${ingredientIndex}][ingredient_id]"
-                                                                class="form-select ingredient-select"
-                                                                onchange="updateUnit(this)"
-                                                                required>
-
-                                                                <option value="">
-                                                                    Pilih Bahan
-                                                                </option>
-
-                                                                @foreach ($ingredients as $ingredient)
-
-                                                                    <option
-                                                                        value="{{ $ingredient->id }}"
-                                                                        data-unit="{{ $ingredient->unit }}">
-
-                                                                        {{ $ingredient->name }}
-                                                                        - {{ $ingredient->branch->name }}
-
-                                                                    </option>
-
-                                                                @endforeach
-
-                                                            </select>
-
-                                                        </div>
-
-
-                                                        <div class="col-md-3">
-
-                                                            <label class="form-label">
-                                                                Jumlah
-                                                            </label>
-
-                                                            <input type="number"
-                                                                   name="ingredients[${ingredientIndex}][quantity]"
-                                                                   class="form-control"
-                                                                   min="0.01"
-                                                                   step="0.01"
-                                                                   required>
-
-                                                        </div>
-
-
-                                                        <div class="col-md-2">
-
-                                                            <label class="form-label">
-                                                                Satuan
-                                                            </label>
-
-                                                            <input type="text"
-                                                                   class="form-control ingredient-unit"
-                                                                   readonly>
-
-                                                        </div>
-
-
-                                                        <div class="col-md-1">
-
-                                                            <button type="button"
-                                                                    class="btn btn-outline-danger"
-                                                                    onclick="removeIngredient(this)">
-
-                                                                <i class="bi bi-trash"></i>
-
-                                                            </button>
-
-                                                        </div>
-
-                                                    </div>
-
-                                                </div>
-
-                                            `;
-
-            document
-                .getElementById('ingredient-container')
-                .insertAdjacentHTML('beforeend', html);
-
+            container.appendChild(newRow);
             ingredientIndex++;
         }
 
-
         function removeIngredient(button) {
+            const rows = document.querySelectorAll('.ingredient-row');
+
+            if (rows.length <= 1) {
+                alert('Resep harus memiliki minimal satu bahan baku.');
+                return;
+            }
+
             button.closest('.ingredient-row').remove();
         }
 
-
         function updateUnit(select) {
-            let option = select.options[select.selectedIndex];
-
-            let unit = option.getAttribute('data-unit') ?? '';
+            const option = select.options[select.selectedIndex];
+            const unit = option?.dataset.unit ?? '';
 
             select.closest('.ingredient-row')
-                .querySelector('.ingredient-unit')
-                .value = unit;
+                .querySelector('.ingredient-unit').value = unit;
         }
-
     </script>
 
 @endsection

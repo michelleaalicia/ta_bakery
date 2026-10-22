@@ -15,9 +15,9 @@
                 <div class="mb-3">
                     <label class="form-label">Cabang</label>
 
-                    <select name="branch_id" class="form-select" required>
+                    <select name="branch_id" class="form-select" {{ $branches->isNotEmpty() ? 'required' : '' }}>
 
-                        <option value="">Pilih Cabang</option>
+                        <option value="">{{ $branches->isEmpty() ? 'Tanpa Cabang' : 'Pilih Cabang' }}</option>
 
                         @foreach ($branches as $branch)
 

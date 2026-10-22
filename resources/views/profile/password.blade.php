@@ -6,11 +6,6 @@
 @section('content')
 
     <div class="card">
-
-        <div class="card-header">
-            <h3 class="card-title">Ubah Password</h3>
-        </div>
-
         @if (session('success'))
             <div class="alert alert-success m-3">
                 {{ session('success') }}

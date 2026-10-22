@@ -36,7 +36,6 @@
                     <h5 class="mb-1">Varian Produk</h5>
                     <div class="text-muted small">Harga jual dan stok produk jadi ditampilkan per varian.</div>
                 </div>
-                <a href="{{ route('products.edit', $product) }}" class="btn btn-warning btn-sm">Edit Produk</a>
             </div>
 
             <div class="table-responsive">
@@ -78,7 +77,8 @@
                                                 @endphp
                                                 <div class="d-flex flex-wrap justify-content-between gap-2">
                                                     <span class="text-muted">{{ $branch->name }}</span>
-                                                    <span class="badge {{ (float) $stockAmount > 0 ? 'bg-light text-dark border' : 'bg-secondary' }}">
+                                                    <span
+                                                        class="badge {{ (float) $stockAmount > 0 ? 'bg-light text-dark border' : 'bg-secondary' }}">
                                                         {{ rtrim(rtrim(number_format((float) $stockAmount, 2, ',', '.'), '0'), ',') }}
                                                     </span>
                                                 </div>
@@ -91,7 +91,8 @@
                                         @endphp
                                         <div class="d-flex justify-content-between align-items-center gap-2">
                                             <span class="text-muted">Tanpa cabang</span>
-                                            <span class="badge {{ (float) $stockAmount > 0 ? 'bg-light text-dark border' : 'bg-secondary' }}">
+                                            <span
+                                                class="badge {{ (float) $stockAmount > 0 ? 'bg-light text-dark border' : 'bg-secondary' }}">
                                                 {{ rtrim(rtrim(number_format((float) $stockAmount, 2, ',', '.'), '0'), ',') }}
                                             </span>
                                         </div>
@@ -107,9 +108,8 @@
                                 <td>
                                     <a href="{{ route('product-variants.edit', [$product, $variant]) }}"
                                         class="btn btn-warning btn-sm">Edit</a>
-                                    <form action="{{ route('product-variants.destroy', [$product, $variant]) }}"
-                                        method="POST" class="d-inline"
-                                        onsubmit="return confirm('Yakin ingin menghapus varian ini?')">
+                                    <form action="{{ route('product-variants.destroy', [$product, $variant]) }}" method="POST"
+                                        class="d-inline" onsubmit="return confirm('Yakin ingin menghapus varian ini?')">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
@@ -130,7 +130,6 @@
 
         <div class="card-footer d-flex justify-content-between">
             <a href="{{ route('products.index') }}" class="btn btn-secondary btn-sm">Kembali</a>
-            <a href="{{ route('products.edit', $product) }}" class="btn btn-dark btn-sm">Edit Produk</a>
         </div>
     </div>
 

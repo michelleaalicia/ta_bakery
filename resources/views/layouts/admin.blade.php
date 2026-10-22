@@ -9,6 +9,8 @@
 
     <link rel="stylesheet" href="{{ asset('adminlte/css/adminlte.css') }}">
 
+    <link rel="stylesheet" href="https://cdn.datatables.net/v/bs5/dt-3.1.4/datatables.min.css">
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
 
     <style>
@@ -309,13 +311,13 @@
 
                         @if ($modules->contains('Jadwal Produksi'))
                             <li class="nav-item">
-                                <a href="#" class="nav-link">
+                                <a href="{{ route('production_schedules.index') }}"
+                                    class="nav-link {{ request()->routeIs('production_schedules.*') ? 'active' : '' }}">
                                     <i class="nav-icon bi bi-calendar3"></i>
                                     <p>Jadwal Produksi</p>
                                 </a>
                             </li>
                         @endif
-
 
                         {{-- PESANAN --}}
                         @if (
@@ -327,7 +329,8 @@
 
                         @if ($modules->contains('Custom Order'))
                             <li class="nav-item">
-                                <a href="#" class="nav-link">
+                                <a href="{{ route('custom_orders.index') }}"
+                                    class="nav-link {{ request()->routeIs('custom_orders.*') ? 'active' : '' }}">
                                     <i class="nav-icon bi bi-clipboard"></i>
                                     <p>Custom Order</p>
                                 </a>
@@ -336,13 +339,13 @@
 
                         @if ($modules->contains('Pembayaran'))
                             <li class="nav-item">
-                                <a href="#" class="nav-link">
+                                <a href="{{ route('custom_order_payments.index') }}"
+                                    class="nav-link {{ request()->routeIs('custom_order_payments.*') ? 'active' : '' }}">
                                     <i class="nav-icon bi bi-credit-card"></i>
                                     <p>Pembayaran</p>
                                 </a>
                             </li>
                         @endif
-
 
                         {{-- PENJUALAN --}}
                         @if (
@@ -354,7 +357,9 @@
 
                         @if ($modules->contains('POS'))
                             <li class="nav-item">
-                                <a href="#" class="nav-link">
+
+                                <a href="{{ route('pos.index') }}"
+                                    class="nav-link {{ request()->routeIs('pos.*') ? 'active' : '' }}">
                                     <i class="nav-icon bi bi-cart3"></i>
                                     <p>POS</p>
                                 </a>
@@ -471,6 +476,9 @@
 
     <script src="{{ asset('adminlte/js/adminlte.js') }}"></script>
 
+    <script src="https://cdn.datatables.net/v/bs5/dt-3.1.4/datatables.min.js"></script>
+
+    @stack('scripts')
 </body>
 
 </html>

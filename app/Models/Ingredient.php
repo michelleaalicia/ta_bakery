@@ -8,6 +8,7 @@ class Ingredient extends Model
 {
     protected $fillable = [
         'tenant_id',
+        'ingredient_master_id',
         'branch_id',
         'name',
         'unit',
@@ -15,6 +16,11 @@ class Ingredient extends Model
         'stock',
         'min_stock',
     ];
+
+    public function master()
+    {
+        return $this->belongsTo(IngredientMaster::class, 'ingredient_master_id');
+    }
 
     public function tenant()
     {

@@ -4,13 +4,16 @@
 @section('page-title', 'Tambah Produk')
 
 @section('content')
-
+    <style>
+        .variant-row .btn-remove-variant {
+            height: 38px;
+            width: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
     <div class="card">
-
-        <div class="card-header">
-            <h3 class="card-title">Tambah Produk</h3>
-        </div>
-
         <form method="POST" action="{{ route('products.store') }}" enctype="multipart/form-data">
 
             @csrf
@@ -150,14 +153,10 @@
 
                                 {{-- Hapus --}}
                                 <div class="col-md-1 d-flex align-items-end">
-
-                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                    <button type="button" class="btn btn-outline-danger btn-remove-variant"
                                         onclick="removeVariant(this)">
-
                                         <i class="bi bi-trash"></i>
-
                                     </button>
-
                                 </div>
 
                             </div>
@@ -201,78 +200,72 @@
         function addVariant() {
             let html = `
 
-                <div class="variant-row border rounded p-3 mb-2">
+                                                            <div class="variant-row border rounded p-3 mb-2">
 
-                    <div class="row">
+                                                                <div class="row">
 
-                        <div class="col-md-5">
+                                                                    <div class="col-md-5">
 
-                            <label class="form-label">
-                                Nama Varian
-                            </label>
+                                                                        <label class="form-label">
+                                                                            Nama Varian
+                                                                        </label>
 
-                            <input type="text"
-                                name="variants[${variantIndex}][name]"
-                                class="form-control"
-                                placeholder="Nama varian"
-                                required>
+                                                                        <input type="text"
+                                                                            name="variants[${variantIndex}][name]"
+                                                                            class="form-control"
+                                                                            placeholder="Nama varian"
+                                                                            required>
 
-                        </div>
-
-
-                        <div class="col-md-3">
-
-                            <label class="form-label">
-                                Status
-                            </label>
-
-                            <select name="variants[${variantIndex}][status]"
-                                class="form-select">
-
-                                <option value="active">
-                                    Aktif
-                                </option>
-
-                                <option value="inactive">
-                                    Tidak Aktif
-                                </option>
-
-                            </select>
-
-                        </div>
+                                                                    </div>
 
 
-                        <div class="col-md-3">
+                                                                    <div class="col-md-3">
 
-                            <label class="form-label">
-                                Gambar
-                            </label>
+                                                                        <label class="form-label">
+                                                                            Status
+                                                                        </label>
 
-                            <input type="file"
-                                name="variants[${variantIndex}][image]"
-                                class="form-control"
-                                accept="image/*">
+                                                                        <select name="variants[${variantIndex}][status]"
+                                                                            class="form-select">
 
-                        </div>
+                                                                            <option value="active">
+                                                                                Aktif
+                                                                            </option>
+
+                                                                            <option value="inactive">
+                                                                                Tidak Aktif
+                                                                            </option>
+
+                                                                        </select>
+
+                                                                    </div>
 
 
-                        <div class="col-md-1 d-flex align-items-end">
+                                                                    <div class="col-md-3">
 
-                            <button type="button"
-                                class="btn btn-sm btn-outline-danger"
-                                onclick="removeVariant(this)">
+                                                                        <label class="form-label">
+                                                                            Gambar
+                                                                        </label>
 
-                                <i class="bi bi-trash"></i>
+                                                                        <input type="file"
+                                                                            name="variants[${variantIndex}][image]"
+                                                                            class="form-control"
+                                                                            accept="image/*">
 
-                            </button>
+                                                                    </div>
+                                <div class="col-md-1 d-flex align-items-end">
+                                    <button type="button"
+                                        class="btn btn-outline-danger btn-remove-variant"
+                                        onclick="removeVariant(this)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
 
-                        </div>
+                                                                </div>
 
-                    </div>
+                                                            </div>
 
-                </div>
-
-            `;
+                                                        `;
 
             document
                 .getElementById('variant-container')

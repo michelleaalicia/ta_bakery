@@ -6,11 +6,6 @@
 @section('content')
 
     <div class="card">
-
-        <div class="card-header">
-            <h3 class="card-title">Edit Cabang</h3>
-        </div>
-
         <form method="POST" action="{{ route('branches.update', $branch) }}">
             @csrf
             @method('PUT')

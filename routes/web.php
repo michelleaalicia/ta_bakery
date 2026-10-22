@@ -13,6 +13,10 @@ use App\Http\Controllers\RecipeController;
 use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\ProductionOrderController;
 use App\Http\Controllers\JobDescriptionController;
+use App\Http\Controllers\PosController;
+use App\Http\Controllers\ProductionScheduleController;
+use App\Http\Controllers\CustomOrderController;
+use App\Http\Controllers\CustomOrderPaymentController;
 
 Route::view('/', 'landing')->name('landing');
 
@@ -103,8 +107,79 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('module:Produksi')
         ->name('production_orders.update-status');
 
+    Route::post('/production_orders/{productionOrder}/apply-price', [ProductionOrderController::class, 'applyRecommendedPrice'])
+        ->middleware('module:Produksi')
+        ->name('production_orders.apply-price');
+
     Route::resource('production_orders', ProductionOrderController::class)
         ->middleware('module:Produksi');
+
+    // POS
+
+    Route::get('/pos', [PosController::class, 'index'])
+        ->middleware('module:POS')
+        ->name('pos.index');
+
+    Route::post('/pos/select-branch', [PosController::class, 'selectBranch'])
+        ->middleware('module:POS')
+        ->name('pos.select-branch');
+
+    Route::get('/pos/products', [PosController::class, 'products'])
+        ->middleware('module:POS')
+        ->name('pos.products');
+
+    Route::post('/pos/checkout', [PosController::class, 'checkout'])
+        ->middleware('module:POS')
+        ->name('pos.checkout');
+
+    Route::post('/pos/{sale}/confirm-payment', [PosController::class, 'confirmPayment'])
+        ->middleware('module:POS')
+        ->name('pos.confirm-payment');
+
+    // Jadwal Produksi
+    Route::get('/production-schedules', [ProductionScheduleController::class, 'index'])
+        ->middleware('module:Jadwal Produksi')
+        ->name('production_schedules.index');
+
+    Route::middleware('module:Custom Order')->group(function () {
+        Route::get('/custom-orders', [CustomOrderController::class, 'index'])
+            ->name('custom_orders.index');
+
+        Route::get('/custom-orders/create', [CustomOrderController::class, 'create'])
+            ->name('custom_orders.create');
+
+        Route::post('/custom-orders', [CustomOrderController::class, 'store'])
+            ->name('custom_orders.store');
+    });
+
+    Route::get('/custom-orders/{customOrder}', [CustomOrderController::class, 'show'])
+        ->name('custom_orders.show');
+
+    Route::patch('/custom-orders/{customOrder}/estimation', [CustomOrderController::class, 'updateEstimation'])
+        ->name('custom_orders.estimation');
+
+    Route::patch('/custom-orders/{customOrder}/price', [CustomOrderController::class, 'updatePrice'])
+        ->name('custom_orders.price');
+
+    Route::get('/custom-orders/{customOrder}/edit', [CustomOrderController::class, 'edit'])
+        ->name('custom_orders.edit');
+
+    Route::put('/custom-orders/{customOrder}', [CustomOrderController::class, 'update'])
+        ->name('custom_orders.update');
+
+    Route::patch('/custom-orders/{customOrder}/confirm', [CustomOrderController::class, 'confirm'])
+        ->name('custom_orders.confirm');
+
+    Route::middleware('module:Pembayaran')->group(function () {
+        Route::get('/custom-order-payments', [CustomOrderPaymentController::class, 'index'])
+            ->name('custom_order_payments.index');
+
+        Route::get('/custom-order-payments/{customOrder}', [CustomOrderPaymentController::class, 'show'])
+            ->name('custom_order_payments.show');
+
+        Route::post('/custom-order-payments/{customOrder}', [CustomOrderPaymentController::class, 'store'])
+            ->name('custom_order_payments.store');
+    });
 });
 
 require __DIR__ . '/auth.php';

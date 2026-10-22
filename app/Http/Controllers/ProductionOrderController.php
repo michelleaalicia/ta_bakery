@@ -69,10 +69,7 @@ class ProductionOrderController extends Controller
             $ingredients
         );
 
-        $sellingPrice = $costs['hppPerUnit'] *
-            (1 + ((float) $data['profit_percentage'] / 100));
-
-        DB::transaction(function () use ($data, $variant, $branch, $users, $ingredients, $costs, $sellingPrice) {
+        DB::transaction(function () use ($data, $variant, $branch, $users, $ingredients, $costs) {
             $productionOrder = ProductionOrder::create([
                 'product_variant_id' => $variant->id,
                 'branch_id' => $branch?->id,
@@ -82,9 +79,7 @@ class ProductionOrderController extends Controller
                 'production_date' => $data['production_date'],
                 'status' => 'planned',
                 'bop_cost' => $data['bop_cost'],
-                'profit_percentage' => $data['profit_percentage'],
                 'hpp_per_unit' => $costs['hppPerUnit'],
-                'selling_price' => round($sellingPrice, 2),
                 'notes' => $data['notes'] ?? null,
             ]);
 
@@ -127,7 +122,7 @@ class ProductionOrderController extends Controller
         $laborCost = $productionOrder->users->sum(
             fn($user) =>
                 $user->pivot->labor_hours *
-                $user->wage_rate_per_hour
+                ($user->pivot->labor_rate_per_hour ?? $user->wage_rate_per_hour)
         );
 
         $totalCost =
@@ -150,10 +145,10 @@ class ProductionOrderController extends Controller
     {
         $this->authorizeTenant($productionOrder);
 
-        if ($productionOrder->status === 'completed') {
+        if ($productionOrder->status !== 'planned') {
             return redirect()
                 ->route('production_orders.show', $productionOrder)
-                ->with('error', 'Produksi yang sudah selesai tidak dapat diubah.');
+                ->with('error', 'Hanya produksi berstatus direncanakan yang dapat diubah.');
         }
 
         $productionOrder->load([
@@ -174,10 +169,10 @@ class ProductionOrderController extends Controller
     ) {
         $this->authorizeTenant($productionOrder);
 
-        if ($productionOrder->status === 'completed') {
+        if ($productionOrder->status !== 'planned') {
             return redirect()
                 ->route('production_orders.show', $productionOrder)
-                ->with('error', 'Produksi yang sudah selesai tidak dapat diubah.');
+                ->with('error', 'Hanya produksi berstatus direncanakan yang dapat diubah.');
         }
 
         $data = $this->validateRequest($request);
@@ -220,7 +215,6 @@ class ProductionOrderController extends Controller
                 'quantity' => $data['quantity'],
                 'production_date' => $data['production_date'],
                 'bop_cost' => $data['bop_cost'],
-                'profit_percentage' => $data['profit_percentage'],
                 'hpp_per_unit' => $costs['hppPerUnit'],
                 'notes' => $data['notes'] ?? null,
             ]);
@@ -358,22 +352,9 @@ class ProductionOrderController extends Controller
                     ]);
                 }
 
-                // Simpan status selesai sebelum menghitung ulang HPP.
-
                 $order->update([
                     'status' => 'completed',
-                    'selling_price' => round(
-                        (float) $order->hpp_per_unit *
-                        (1 + ((float) $order->profit_percentage / 100)),
-                        2
-                    ),
                 ]);
-
-                $this->updateAverageHppAndSellingPrice(
-                    $variant,
-                    (float) $order->profit_percentage
-                );
-
             });
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
@@ -392,14 +373,57 @@ class ProductionOrderController extends Controller
         );
     }
 
+    public function applyRecommendedPrice(Request $request, ProductionOrder $productionOrder)
+    {
+        $this->authorizeTenant($productionOrder);
+
+        if (!$this->isOwner()) {
+            abort(403);
+        }
+
+        if ($productionOrder->status !== 'completed') {
+            return back()->with('error', 'Harga hanya bisa ditetapkan dari produksi selesai.');
+        }
+
+        $data = $request->validate([
+            'final_price' => ['required', 'integer', 'min:1', 'max:9999999999999'],
+        ], [
+            'final_price.required' => 'Harga pilihan Owner wajib diisi.',
+            'final_price.integer' => 'Harga jual harus berupa bilangan bulat dalam rupiah.',
+            'final_price.min' => 'Harga jual harus lebih dari Rp0.',
+        ]);
+
+        if ($productionOrder->hpp_per_unit <= 0) {
+            return back()->with('error', 'HPP produksi tidak valid. Harga tidak diubah.');
+        }
+
+        // Pastikan varian tetap berasal dari bakery yang sedang login.
+        $variant = ProductVariant::whereKey($productionOrder->product_variant_id)
+            ->whereHas('product', function ($query) {
+                $query->where('tenant_id', $this->tenantId());
+            })->firstOrFail();
+
+        $variant->update(['price' => $data['final_price']]);
+
+        return back()->with(
+            'success',
+            'Harga pilihan Owner berhasil disimpan di Produk dan berlaku di POS untuk seluruh cabang.'
+        );
+    }
+
+    private function isOwner(): bool
+    {
+        return auth()->user()->role?->name === 'Owner';
+    }
+
     public function destroy(ProductionOrder $productionOrder)
     {
         $this->authorizeTenant($productionOrder);
 
-        if ($productionOrder->status === 'completed') {
+        if ($productionOrder->status !== 'planned') {
             return redirect()
                 ->route('production_orders.index')
-                ->with('error', 'Produksi yang sudah selesai tidak dapat dihapus.');
+                ->with('error', 'Hanya produksi berstatus direncanakan yang dapat dihapus.');
         }
 
         DB::transaction(function () use ($productionOrder) {
@@ -531,7 +555,8 @@ class ProductionOrderController extends Controller
             'batch_count' => [
                 'required',
                 'numeric',
-                'gt:0'
+                'integer',
+                'min:1'
             ],
 
             'production_date' => [
@@ -543,13 +568,6 @@ class ProductionOrderController extends Controller
                 'required',
                 'numeric',
                 'min:0'
-            ],
-
-            'profit_percentage' => [
-                'required',
-                'numeric',
-                'min:0',
-                'max:100'
             ],
 
             'notes' => [
@@ -565,7 +583,8 @@ class ProductionOrderController extends Controller
 
             'employees.*.user_id' => [
                 'required',
-                'exists:users,id'
+                'exists:users,id',
+                'distinct'
             ],
 
             'employees.*.job_description' => [
@@ -686,58 +705,39 @@ class ProductionOrderController extends Controller
         ];
     }
 
-    private function updateAverageHppAndSellingPrice(
-        ProductVariant $variant,
-        float $profitPercentage
-    ): void {
-        $averageHpp = ProductionOrder::where(
-            'product_variant_id',
-            $variant->id
-        )
-            ->where('status', 'completed')
-            ->where('hpp_per_unit', '>', 0)
-            ->where('quantity', '>', 0)
-            ->selectRaw(
-                'SUM(hpp_per_unit * quantity) / SUM(quantity) as average_hpp'
-            )
-            ->value('average_hpp');
-
-        if ($averageHpp === null) {
-            return;
-        }
-
-        $averageHpp = (float) $averageHpp;
-
-        $sellingPrice = $averageHpp *
-            (1 + ($profitPercentage / 100));
-
-        $variant->update([
-            'price' => round($sellingPrice, 2),
-        ]);
-    }
-
     private function findRecipeIngredients($recipe, $branchId)
     {
-        $ingredients = $recipe->ingredients;
-
-        if ($branchId) {
-            $ingredients = $ingredients->filter(
-                fn($ingredient) => $ingredient->branch_id == $branchId
-            );
-        } else {
-            $ingredients = $ingredients->filter(
-                fn($ingredient) => $ingredient->branch_id === null
-            );
+        $recipeIngredients = $recipe->ingredients;
+        $result = collect();
+        if ($recipeIngredients->isEmpty()) {
+            throw ValidationException::withMessages(['product_variant_id' => 'Resep belum memiliki bahan baku.']);
         }
 
-        if ($ingredients->count() !== $recipe->ingredients->count()) {
-            throw ValidationException::withMessages([
-                'branch_id' =>
-                    'Terdapat bahan pada resep yang tidak tersedia pada cabang yang dipilih.'
-            ]);
-        }
+        foreach ($recipeIngredients as $standard) {
+            if (!$standard->ingredient_master_id) {
+                throw ValidationException::withMessages([
+                    'product_variant_id' => 'Bahan resep belum terhubung ke master bahan. Jalankan migrasi terlebih dahulu.'
+                ]);
+            }
 
-        return $ingredients;
+            $candidates = \App\Models\Ingredient::where('tenant_id', $this->tenantId())
+                ->where('ingredient_master_id', $standard->ingredient_master_id);
+            if ($branchId === null) {
+                $candidates->whereNull('branch_id');
+            } else {
+                $candidates->where('branch_id', $branchId);
+            }
+            $matches = $candidates->get();
+            if ($matches->count() !== 1) {
+                throw ValidationException::withMessages([
+                    'branch_id' => 'Bahan ' . $standard->name . ' harus tersedia tepat satu kali pada cabang produksi.'
+                ]);
+            }
+            $ingredient = $matches->first();
+            $ingredient->setRelation('pivot', $standard->pivot);
+            $result->push($ingredient);
+        }
+        return $result;
     }
 
     private function syncIngredients(
@@ -775,6 +775,8 @@ class ProductionOrderController extends Controller
 
                     'labor_hours' =>
                         $employee['labor_hours'],
+                    'labor_rate_per_hour' =>
+                        $users[$employee['user_id']]->wage_rate_per_hour,
                 ]
             );
         }

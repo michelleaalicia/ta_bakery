@@ -62,12 +62,19 @@
                     </div>
                 </div>
 
-                {{-- Tanggal --}}
+                {{-- Tanggal Produksi --}}
                 <div class="mb-3">
-                    <label class="form-label">Tanggal Produksi</label>
+                    <label for="production_date" class="form-label">
+                        Tanggal Produksi
+                    </label>
 
-                    <input type="date" name="production_date" value="{{ old('production_date', date('Y-m-d')) }}"
-                        class="form-control" required>
+                    <input type="date" id="production_date" name="production_date" class="form-control"
+                        value="{{ old('production_date', now()->format('Y-m-d')) }}" min="{{ now()->format('Y-m-d') }}"
+                        required>
+
+                    <div class="form-text">
+                        Pilih tanggal hari ini atau tanggal mendatang.
+                    </div>
                 </div>
 
                 {{-- BOP --}}
@@ -86,24 +93,6 @@
                     </div>
                 </div>
 
-                {{-- Profit --}}
-                <div class="mb-3">
-                    <label for="profit_percentage" class="form-label">
-                        Profit yang Diinginkan
-                    </label>
-
-                    <div class="input-group">
-                        <input type="number" name="profit_percentage" id="profit_percentage"
-                            value="{{ old('profit_percentage') }}" class="form-control"
-                            placeholder="Masukkan persentase keuntungan" min="0" max="100" step="0.01" required>
-
-                        <span class="input-group-text">%</span>
-                    </div>
-
-                    <div class="form-text">
-                        Tentukan persentase keuntungan yang ingin diperoleh dari HPP produksi.
-                    </div>
-                </div>
 
                 {{-- Karyawan --}}
                 <div class="mb-3">
@@ -320,74 +309,74 @@
                 row.className = 'employee-row border rounded p-3 mb-2';
 
                 row.innerHTML = `
-                                                            <div class="row">
+                                                                        <div class="row">
 
-                                                                <div class="col-md-4">
+                                                                            <div class="col-md-4">
 
-                                                                    <label class="form-label">Karyawan</label>
+                                                                                <label class="form-label">Karyawan</label>
 
-                                                                    <select
-                                                                        name="employees[${employeeIndex}][user_id]"
-                                                                        class="form-select employee-select"
-                                                                        required>
+                                                                                <select
+                                                                                    name="employees[${employeeIndex}][user_id]"
+                                                                                    class="form-select employee-select"
+                                                                                    required>
 
-                                                                        <option value="">Pilih karyawan</option>
+                                                                                    <option value="">Pilih karyawan</option>
 
-                                                                        @foreach ($users as $user)
-                                                                            <option
-                                                                                value="{{ $user->id }}"
-                                                                                data-branch="{{ $user->branch_id ?? '' }}">
-                                                                                {{ $user->name }}
-                                                                            </option>
-                                                                        @endforeach
+                                                                                    @foreach ($users as $user)
+                                                                                        <option
+                                                                                            value="{{ $user->id }}"
+                                                                                            data-branch="{{ $user->branch_id ?? '' }}">
+                                                                                            {{ $user->name }}
+                                                                                        </option>
+                                                                                    @endforeach
 
-                                                                    </select>
+                                                                                </select>
 
-                                                                </div>
-
-
-                                                                <div class="col-md-4">
-
-                                                                    <label class="form-label">Pekerjaan</label>
-
-                                                                    <select
-                                                                        name="employees[${employeeIndex}][job_description]"
-                                                                        class="form-select job-description-select"
-                                                                        required>
-                                                                        <option value="">Pilih pekerjaan</option>
-                                                                    </select>
-
-                                                                </div>
+                                                                            </div>
 
 
-                                                                <div class="col-md-3">
+                                                                            <div class="col-md-4">
 
-                                                                    <label class="form-label">Jam Kerja</label>
+                                                                                <label class="form-label">Pekerjaan</label>
 
-                                                                    <input
-                                                                        type="text"
-                                                                        name="employees[${employeeIndex}][labor_hours]"
-                                                                        class="form-control"
-                                                                        placeholder="Contoh: 5"
-                                                                        required>
+                                                                                <select
+                                                                                    name="employees[${employeeIndex}][job_description]"
+                                                                                    class="form-select job-description-select"
+                                                                                    required>
+                                                                                    <option value="">Pilih pekerjaan</option>
+                                                                                </select>
 
-                                                                </div>
+                                                                            </div>
 
 
-                                                                <div class="col-md-1 d-flex align-items-end">
+                                                                            <div class="col-md-3">
 
-                                                                    <button
-                                                                        type="button"
-                                                                        class="btn btn-danger btn-sm remove-employee">
+                                                                                <label class="form-label">Jam Kerja</label>
 
-                                                                        <i class="bi bi-trash"></i>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    name="employees[${employeeIndex}][labor_hours]"
+                                                                                    class="form-control"
+                                                                                    placeholder="Contoh: 5"
+                                                                                    required>
 
-                                                                    </button>
+                                                                            </div>
 
-                                                                </div>
 
-                                                            </div>
-                                                        `;
+                                                                            <div class="col-md-1 d-flex align-items-end">
+
+                                                                                <button
+                                                                                    type="button"
+                                                                                    class="btn btn-danger btn-sm remove-employee">
+
+                                                                                    <i class="bi bi-trash"></i>
+
+                                                                                </button>
+
+                                                                            </div>
+
+                                                                        </div>
+                                                                    `;
 
                 employeeContainer.appendChild(row);
 

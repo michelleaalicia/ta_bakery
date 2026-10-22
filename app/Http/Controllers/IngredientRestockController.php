@@ -2,59 +2,87 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\Ingredient;
 use App\Models\IngredientRestock;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class IngredientRestockController extends Controller
 {
     public function create()
     {
-        $ingredients = Ingredient::with('branch')
-            ->where('tenant_id', auth()->user()->tenant_id)
+        $tenantId = auth()->user()->tenant_id;
+
+        $branches = Branch::where('tenant_id', $tenantId)
             ->orderBy('name')
             ->get();
 
-        return view('ingredient_restocks.create', compact('ingredients'));
+        $ingredients = Ingredient::where('tenant_id', $tenantId)
+            ->whereNotNull('branch_id')
+            ->orderBy('name')
+            ->get();
+
+        return view('ingredient_restocks.create', compact(
+            'branches',
+            'ingredients'
+        ));
     }
 
     public function store(Request $request)
     {
-        $request->validate([
-            'ingredient_id' => ['required', 'integer'],
+        $data = $request->validate([
+            'branch_id' => ['required', 'integer', 'exists:branches,id'],
+            'ingredient_id' => ['required', 'integer', 'exists:ingredients,id'],
             'quantity' => ['required', 'numeric', 'gt:0'],
             'unit_price' => ['required', 'numeric', 'min:0'],
-            'restock_date' => ['required', 'date'],
+            'restock_date' => [
+                'required',
+                'date_format:Y-m-d',
+                'after_or_equal:' . now()->subDay()->toDateString(),
+                'before_or_equal:' . now()->toDateString(),
+            ],
         ]);
 
-        $ingredient = Ingredient::where('id', $request->ingredient_id)
-            ->where('tenant_id', auth()->user()->tenant_id)
-            ->firstOrFail();
+        $tenantId = auth()->user()->tenant_id;
 
-        DB::transaction(function () use ($request, $ingredient) {
-            // Hitung nilai stok lama
+        $branch = Branch::where('tenant_id', $tenantId)
+            ->findOrFail($data['branch_id']);
+
+        $ingredient = Ingredient::where('tenant_id', $tenantId)
+            ->where('branch_id', $branch->id)
+            ->find($data['ingredient_id']);
+
+        if (!$ingredient) {
+            throw ValidationException::withMessages([
+                'ingredient_id' => 'Bahan baku tidak tersedia di cabang yang dipilih.',
+            ]);
+        }
+
+        DB::transaction(function () use ($data, $ingredient, $tenantId) {
+
+            $ingredient = Ingredient::where('tenant_id', $tenantId)
+                ->whereKey($ingredient->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $oldTotal = $ingredient->stock * $ingredient->unit_cost;
 
-            // Hitung nilai pembelian baru
-            $newTotal = $request->quantity * $request->unit_price;
+            $newTotal = $data['quantity'] * $data['unit_price'];
 
-            // Hitung stok setelah restock
-            $newStock = $ingredient->stock + $request->quantity;
+            $newStock = $ingredient->stock + $data['quantity'];
 
-            // Hitung harga rata-rata per satuan
             $newUnitCost = ($oldTotal + $newTotal) / $newStock;
 
-            // Simpan riwayat restock
             IngredientRestock::create([
                 'ingredient_id' => $ingredient->id,
-                'quantity' => $request->quantity,
-                'unit_price' => $request->unit_price,
+                'quantity' => $data['quantity'],
+                'unit_price' => $data['unit_price'],
                 'total_cost' => $newTotal,
-                'restock_date' => $request->restock_date,
+                'restock_date' => $data['restock_date'],
             ]);
 
-            // Perbarui stok dan harga rata-rata
             $ingredient->update([
                 'stock' => $newStock,
                 'unit_cost' => $newUnitCost,

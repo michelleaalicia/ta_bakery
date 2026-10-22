@@ -123,6 +123,7 @@ class UserController extends Controller
             'branch_id' => $branchId,
             'name' => $request->name,
             'email' => $request->email,
+            'email_verified_at' => now(),
             'password' => Hash::make($password),
             'wage_rate_per_hour' => str_replace('.', '', $request->wage_rate_per_hour),
             'status' => $request->status,

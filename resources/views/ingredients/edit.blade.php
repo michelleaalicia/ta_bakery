@@ -4,6 +4,9 @@
 @section('page-title', 'Ubah Bahan Baku')
 
 @section('content')
+    @if (session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+    @endif
 
     <div class="card">
 
@@ -18,7 +21,11 @@
                 <div class="mb-3">
                     <label class="form-label">Cabang</label>
 
-                    <select name="branch_id" class="form-select" required>
+                    <select name="branch_id" class="form-select" {{ $ingredient->branch_id !== null && $branches->isNotEmpty() ? 'required' : '' }}>
+
+                        @if ($ingredient->branch_id === null)
+                            <option value="" selected>Tanpa Cabang</option>
+                        @endif
 
                         @foreach ($branches as $branch)
 

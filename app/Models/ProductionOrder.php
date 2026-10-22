@@ -38,7 +38,7 @@ class ProductionOrder extends Model
             'users_has_production_orders',
             'production_order_id',
             'user_id'
-        )->withPivot('job_description', 'status', 'labor_hours');
+        )->withPivot('job_description', 'status', 'labor_hours', 'labor_rate_per_hour');
     }
 
     public function ingredients()
@@ -49,5 +49,10 @@ class ProductionOrder extends Model
             'production_order_id',
             'ingredient_id'
         )->withPivot('quantity_used', 'unit_cost_used');
+    }
+
+    public function customOrder()
+    {
+        return $this->hasOne(CustomOrder::class);
     }
 }

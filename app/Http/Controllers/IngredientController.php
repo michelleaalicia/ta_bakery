@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Ingredient;
 use App\Models\Branch;
+use App\Models\IngredientMaster;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Http\Request;
 
 class IngredientController extends Controller
@@ -53,15 +56,24 @@ class IngredientController extends Controller
             $branchId = $branch->id;
         }
 
-        Ingredient::create([
+        $this->ensureNoDuplicate($tenantId, $branchId, $request->name, $request->unit);
+        DB::transaction(function () use ($tenantId, $branchId, $request) {
+            $master = IngredientMaster::firstOrCreate([
+                'tenant_id' => $tenantId,
+                'name' => trim($request->name),
+                'unit' => $request->unit,
+            ]);
+            Ingredient::create([
+            'ingredient_master_id' => $master->id,
             'tenant_id' => $tenantId,
             'branch_id' => $branchId,
-            'name' => $request->name,
+            'name' => trim($request->name),
             'unit' => $request->unit,
             'unit_cost' => 0,
             'stock' => 0,
             'min_stock' => $request->min_stock,
-        ]);
+            ]);
+        });
 
         return redirect()
             ->route('ingredients.index')
@@ -108,9 +120,31 @@ class IngredientController extends Controller
             $branchId = $branch->id;
         }
 
+        $masterUsed = Ingredient::where('ingredient_master_id', $ingredient->ingredient_master_id)
+            ->whereHas('recipes')->exists();
+        if ($masterUsed && ($ingredient->name !== trim($request->name)
+            || $ingredient->unit !== $request->unit)) {
+            throw ValidationException::withMessages([
+                'name' => 'Nama dan satuan bahan standar yang sudah digunakan resep tidak boleh diubah.',
+            ]);
+        }
+        if ((string)$ingredient->branch_id !== (string)$branchId
+            && ($ingredient->stock > 0 || $ingredient->restocks()->exists()
+                || $ingredient->productionOrders()->exists())) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Cabang bahan yang sudah memiliki stok atau riwayat tidak boleh dipindah.',
+            ]);
+        }
+        $this->ensureNoDuplicate($tenantId, $branchId, $request->name, $request->unit, $ingredient->id);
+        $master = IngredientMaster::firstOrCreate([
+            'tenant_id' => $tenantId,
+            'name' => trim($request->name),
+            'unit' => $request->unit,
+        ]);
         $ingredient->update([
+            'ingredient_master_id' => $master->id,
             'branch_id' => $branchId,
-            'name' => $request->name,
+            'name' => trim($request->name),
             'unit' => $request->unit,
             'min_stock' => $request->min_stock,
         ]);
@@ -124,6 +158,7 @@ class IngredientController extends Controller
     {
         $this->checkTenant($ingredient);
 
+        // Bahan yang menjadi rujukan resep tidak boleh dihapus.
         if ($ingredient->recipes()->exists()) {
             return redirect()
                 ->route('ingredients.index')
@@ -142,12 +177,27 @@ class IngredientController extends Controller
                 );
         }
 
-        $ingredient->restocks()->delete();
+        if ($ingredient->stock > 0 || $ingredient->restocks()->exists()) {
+            return back()->with('error', 'Bahan yang memiliki stok atau riwayat restock tidak dapat dihapus.');
+        }
         $ingredient->delete();
 
         return redirect()
             ->route('ingredients.index')
             ->with('success', 'Bahan baku berhasil dihapus.');
+    }
+
+    private function ensureNoDuplicate($tenantId, $branchId, $name, $unit, $exceptId = null): void
+    {
+        $query = Ingredient::where('tenant_id', $tenantId)
+            ->where('name', trim($name))->where('unit', $unit);
+        $branchId === null ? $query->whereNull('branch_id') : $query->where('branch_id', $branchId);
+        if ($exceptId !== null) $query->where('id', '!=', $exceptId);
+        if ($query->exists()) {
+            throw ValidationException::withMessages([
+                'name' => 'Bahan dengan nama dan satuan ini sudah ada di cabang tersebut.',
+            ]);
+        }
     }
 
     private function checkTenant(Ingredient $ingredient)
