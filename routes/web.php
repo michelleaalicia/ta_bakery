@@ -17,6 +17,7 @@ use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductionScheduleController;
 use App\Http\Controllers\CustomOrderController;
 use App\Http\Controllers\CustomOrderPaymentController;
+use App\Http\Controllers\CustomProductionController;
 
 Route::view('/', 'landing')->name('landing');
 
@@ -179,7 +180,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::post('/custom-order-payments/{customOrder}', [CustomOrderPaymentController::class, 'store'])
             ->name('custom_order_payments.store');
+
+        Route::post(
+            '/custom-orders/{customOrder}/production',
+            [CustomProductionController::class, 'store']
+        )->name('custom_orders.production.store');
     });
+
+    Route::put(
+        '/production_orders/{productionOrder}/custom-actuals',
+        [CustomProductionController::class, 'updateActuals']
+    )->name('production_orders.custom-actuals.update');
 });
 
 require __DIR__ . '/auth.php';

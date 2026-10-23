@@ -55,10 +55,15 @@
                             Produk - Varian
                         </div>
 
+
                         <div class="fw-semibold">
-                            {{ $productionOrder->productVariant->product->name }}
-                            -
-                            {{ $productionOrder->productVariant->name }}
+                            @if ($productionOrder->order_type === 'custom')
+                                {{ $productionOrder->customOrder?->product_name ?? 'Pesanan Custom' }}
+                            @else
+                                {{ $productionOrder->productVariant?->product?->name ?? '-' }}
+                                -
+                                {{ $productionOrder->productVariant?->name ?? '-' }}
+                            @endif
                         </div>
                     </div>
 
@@ -273,6 +278,58 @@
             </div>
 
 
+            @if (
+                    $productionOrder->order_type === 'custom' &&
+                    $productionOrder->status === 'in_progress'
+                )
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h6 class="fw-semibold mb-3">
+                            Pencatatan Biaya Aktual
+                        </h6>
+
+                        <form action="{{ route('production_orders.custom-actuals.update', $productionOrder) }}" method="POST">
+                            @csrf
+                            @method('PUT')
+
+                            <h6 class="mt-3">Pemakaian Bahan Aktual</h6>
+
+                            @foreach ($productionOrder->ingredients as $ingredient)
+                                <div class="mb-3">
+                                    <label class="form-label">
+                                        {{ $ingredient->name }}
+                                        ({{ $ingredient->unit }})
+                                    </label>
+
+                                    <input type="number" name="materials[{{ $ingredient->id }}]" class="form-control" min="0"
+                                        step="0.01"
+                                        value="{{ old('materials.' . $ingredient->id, $ingredient->pivot->quantity_used) }}"
+                                        required>
+                                </div>
+                            @endforeach
+
+                            <h6 class="mt-4">Jam Kerja Aktual</h6>
+
+                            @foreach ($productionOrder->users as $user)
+                                <div class="mb-3">
+                                    <label class="form-label">
+                                        {{ $user->name }} -
+                                        {{ $user->pivot->job_description }}
+                                    </label>
+
+                                    <input type="number" name="labors[{{ $user->id }}]" class="form-control" min="0" step="0.01"
+                                        value="{{ old('labors.' . $user->id, $user->pivot->labor_hours) }}" required>
+                                </div>
+                            @endforeach
+
+                            <button type="submit" class="btn btn-primary">
+                                Simpan Biaya Aktual
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            @endif
+
             {{-- Perhitungan Biaya --}}
             <div class="border rounded p-3 mb-4">
 
@@ -336,7 +393,10 @@
 
 
 
-            @if ($productionOrder->status === 'completed')
+            @if (
+                    $productionOrder->status === 'completed' &&
+                    $productionOrder->order_type === 'regular'
+                )
                 @php
                     $currentPrice = (float) $productionOrder->productVariant->price;
                     $hasPrice = $currentPrice > 0;
@@ -596,7 +656,11 @@
 
                     </form>
 
-                @elseif ($productionOrder->status === 'in_progress')
+
+                @elseif (
+                        $productionOrder->status === 'in_progress' &&
+                        $productionOrder->order_type === 'regular'
+                    )
 
                     <form action="{{ route('production_orders.update-status', $productionOrder) }}" method="POST"
                         class="d-inline"

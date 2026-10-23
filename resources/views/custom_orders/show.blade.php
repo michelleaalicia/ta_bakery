@@ -342,24 +342,50 @@
             Kembali
         </a>
 
-        @if (
-                $customOrder->status === 'draft' &&
-                auth()->user()->role?->name === 'Owner' &&
-                $customOrder->materials->isNotEmpty() &&
-                $customOrder->labors->isNotEmpty() &&
-                $customOrder->estimated_bop_cost !== null &&
-                $customOrder->selling_price !== null
-            )
-            <form action="{{ route('custom_orders.confirm', $customOrder) }}" method="POST"
-                onsubmit="return confirm('Pelanggan sudah menyetujui spesifikasi dan harga pesanan? Setelah dikonfirmasi, pesanan tidak dapat diedit.')">
-                @csrf
-                @method('PATCH')
+        <div class="d-flex align-items-center gap-2">
+            {{-- Konfirmasi Pesanan (draft) --}}
+            @if (
+                    $customOrder->status === 'draft' &&
+                    auth()->user()->role?->name === 'Owner' &&
+                    $customOrder->materials->isNotEmpty() &&
+                    $customOrder->labors->isNotEmpty() &&
+                    $customOrder->estimated_bop_cost !== null &&
+                    $customOrder->selling_price !== null
+                )
+                <form action="{{ route('custom_orders.confirm', $customOrder) }}" method="POST"
+                    onsubmit="return confirm('Pelanggan sudah menyetujui spesifikasi dan harga pesanan? Setelah dikonfirmasi, pesanan tidak dapat diedit.')">
+                    @csrf
+                    @method('PATCH')
 
-                <button type="submit" class="btn btn-success">
-                    Konfirmasi Pesanan
-                </button>
-            </form>
-        @endif
+                    <button type="submit" class="btn btn-success">
+                        Konfirmasi Pesanan
+                    </button>
+                </form>
+            @endif
+
+            {{-- Buat Produksi (confirmed, sudah ada DP, belum ada produksi) --}}
+            @if (
+                    $customOrder->status === 'confirmed' &&
+                    !$customOrder->production_order_id &&
+                    $customOrder->payments->contains('payment_type', 'dp')
+                )
+                <form method="POST" action="{{ route('custom_orders.production.store', $customOrder) }}"
+                    onsubmit="return confirm('Buat produksi untuk pesanan ini?')">
+                    @csrf
+
+                    <button type="submit" class="btn btn-primary">
+                        Buat Produksi
+                    </button>
+                </form>
+            @endif
+
+            {{-- Lihat Produksi (sudah punya production order) --}}
+            @if ($customOrder->production_order_id)
+                <a href="{{ route('production_orders.show', $customOrder->production_order_id) }}" class="btn btn-success">
+                    Lihat Produksi
+                </a>
+            @endif
+        </div>
     </div>
 
 @endsection
@@ -463,44 +489,44 @@
                 row.className = 'labor-row border rounded p-3 mb-3';
 
                 row.innerHTML = `
-                            <div class="row g-3 align-items-end">
-                                <div class="col-md-4">
-                                    <label class="form-label">Karyawan</label>
-                                    <select name="labors[${rowIndex}][user_id]"
-                                        class="form-select labor-user" required>
-                                        <option value="">Pilih karyawan</option>
-                                    </select>
-                                </div>
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Karyawan</label>
+                                            <select name="labors[${rowIndex}][user_id]"
+                                                class="form-select labor-user" required>
+                                                <option value="">Pilih karyawan</option>
+                                            </select>
+                                        </div>
 
-                                <div class="col-md-4">
-                                    <label class="form-label">Pekerjaan</label>
-                                    <select name="labors[${rowIndex}][job_description]"
-                                        class="form-select labor-job" required>
-                                        <option value="">Pilih pekerjaan</option>
-                                    </select>
-                                </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Pekerjaan</label>
+                                            <select name="labors[${rowIndex}][job_description]"
+                                                class="form-select labor-job" required>
+                                                <option value="">Pilih pekerjaan</option>
+                                            </select>
+                                        </div>
 
-                                <div class="col-md-3">
-                                    <label class="form-label">Estimasi Jam Kerja</label>
-                                    <input type="text" inputmode="decimal"
-                                        name="labors[${rowIndex}][estimated_hours]"
-                                        class="form-control labor-hours"
-                                        placeholder="Contoh: 3" required>
-                                </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Estimasi Jam Kerja</label>
+                                            <input type="text" inputmode="decimal"
+                                                name="labors[${rowIndex}][estimated_hours]"
+                                                class="form-control labor-hours"
+                                                placeholder="Contoh: 3" required>
+                                        </div>
 
-                                <div class="col-md-1">
-                                    <button type="button"
-                                        class="btn btn-outline-danger remove-labor">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
+                                        <div class="col-md-1">
+                                            <button type="button"
+                                                class="btn btn-outline-danger remove-labor">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
 
-                            <div class="d-flex justify-content-between mt-3 small">
-                                <span>Tarif/Jam: <strong class="labor-rate">Rp 0</strong></span>
-                                <span>Estimasi Biaya: <strong class="labor-cost">Rp 0</strong></span>
-                            </div>
-                        `;
+                                    <div class="d-flex justify-content-between mt-3 small">
+                                        <span>Tarif/Jam: <strong class="labor-rate">Rp 0</strong></span>
+                                        <span>Estimasi Biaya: <strong class="labor-cost">Rp 0</strong></span>
+                                    </div>
+                                `;
 
                 container.appendChild(row);
 
