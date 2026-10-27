@@ -68,6 +68,18 @@ class User extends Authenticatable implements MustVerifyEmail
         ];
     }
 
+    public function hasVerifiedEmail(): bool
+    {
+        // Karyawan tidak memerlukan verifikasi email.
+        if ($this->role?->name !== 'Owner') {
+            return true;
+        }
+
+        // Owner tetap wajib melakukan verifikasi email.
+        return !is_null($this->email_verified_at);
+    }
+
+
     public function sendEmailVerificationNotification(): void
     {
         if ($this->role?->name !== 'Owner') {

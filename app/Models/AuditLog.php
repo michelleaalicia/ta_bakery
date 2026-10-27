@@ -10,6 +10,8 @@ class AuditLog extends Model
 
     protected $fillable = [
         'user_id',
+        'tenant_id',
+        'branch_id',
         'action',
         'table_name',
         'record_id',
@@ -21,5 +23,10 @@ class AuditLog extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

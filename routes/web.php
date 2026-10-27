@@ -18,15 +18,23 @@ use App\Http\Controllers\ProductionScheduleController;
 use App\Http\Controllers\CustomOrderController;
 use App\Http\Controllers\CustomOrderPaymentController;
 use App\Http\Controllers\CustomProductionController;
+use App\Http\Controllers\JobCostSheetController;
+use App\Http\Controllers\CustomOrderDeliveryController;
+use App\Http\Controllers\SaleHistoryController;
+use App\Http\Controllers\SalesReportController;
+use App\Http\Controllers\GrossProfitReportController;
+use App\Http\Controllers\ForecastController;
+use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\DashboardController;
 
 Route::view('/', 'landing')->name('landing');
 
 Route::middleware(['auth', 'verified'])->group(function () {
 
     // Dashboard
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])
+        ->name('dashboard');
 
     // Manajemen Pengguna
     Route::get('/users/import', [UserController::class, 'import'])
@@ -59,6 +67,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/profile/password', [UserController::class, 'passwordUpdate'])
         ->name('profile.password.update');
 
+    Route::patch('/profile/name', [ProfileController::class, 'updateName'])
+        ->name('profile.name.update');
+
+    Route::patch('/profile/bakery', [ProfileController::class, 'updateBakery'])
+        ->name('profile.bakery.update');
+
     // Role
     Route::resource('roles', RoleController::class)
         ->middleware('module:Manajemen Pengguna');
@@ -74,6 +88,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Produk
     Route::resource('products', ProductController::class)
         ->middleware('module:Produk');
+
+    Route::post(
+        '/products/{product}/variants',
+        [ProductVariantController::class, 'store']
+    )
+        ->middleware('module:Produk')
+        ->name('product-variants.store');
 
     Route::get('/products/{product}/variants/{variant}/edit', [ProductVariantController::class, 'edit'])
         ->middleware('module:Produk')
@@ -137,6 +158,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('module:POS')
         ->name('pos.confirm-payment');
 
+    Route::post('/pos/{sale}/cancel-payment', [PosController::class, 'cancelPayment'])
+        ->middleware('module:POS')
+        ->name('pos.cancel-payment');
+
     // Jadwal Produksi
     Route::get('/production-schedules', [ProductionScheduleController::class, 'index'])
         ->middleware('module:Jadwal Produksi')
@@ -185,12 +210,51 @@ Route::middleware(['auth', 'verified'])->group(function () {
             '/custom-orders/{customOrder}/production',
             [CustomProductionController::class, 'store']
         )->name('custom_orders.production.store');
+
+        Route::get('/custom-order-payments/{customOrder}/receipt/{payment}', [CustomOrderPaymentController::class, 'receipt'])
+            ->name('custom_order_payments.receipt');
     });
 
     Route::put(
         '/production_orders/{productionOrder}/custom-actuals',
         [CustomProductionController::class, 'updateActuals']
     )->name('production_orders.custom-actuals.update');
+
+    Route::get('/production_orders/{productionOrder}/job-cost-sheet', [JobCostSheetController::class, 'show'])
+        ->middleware('module:Produksi')
+        ->name('production_orders.job-cost-sheet');
+
+    Route::patch('/custom-orders/{customOrder}/deliver', [CustomOrderDeliveryController::class, 'store'])
+        ->middleware('module:Custom Order')
+        ->name('custom_orders.deliver');
+
+
+    Route::middleware('module:Riwayat Penjualan')->group(function () {
+        Route::get('/sales', [SaleHistoryController::class, 'index'])
+            ->name('sales.index');
+
+        Route::get('/sales/{sale}', [SaleHistoryController::class, 'show'])
+            ->name('sales.show');
+
+        Route::get('/sales/{sale}/receipt', [SaleHistoryController::class, 'receipt'])
+            ->name('sales.receipt');
+    });
+
+    Route::get('/reports/sales', [SalesReportController::class, 'index'])
+        ->middleware('module:Laporan Penjualan')
+        ->name('reports.sales');
+
+    Route::get('/reports/gross-profit', [GrossProfitReportController::class, 'index'])
+        ->middleware('module:Laporan Laba Rugi')
+        ->name('reports.gross-profit');
+
+    Route::get('/forecasts', [ForecastController::class, 'index'])
+        ->middleware('module:Forecast')
+        ->name('forecasts.index');
+
+    Route::get('/audit-logs', [AuditLogController::class, 'index'])
+        ->middleware('module:Riwayat Aktivitas')
+        ->name('audit_logs.index');
 });
 
 require __DIR__ . '/auth.php';

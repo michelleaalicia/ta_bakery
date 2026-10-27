@@ -12,26 +12,36 @@
 
             <div class="card-body">
 
+
                 <div class="mb-3">
-                    <label class="form-label">Cabang</label>
+                    <label for="branch_id" class="form-label">Cabang</label>
 
-                    <select name="branch_id" class="form-select" {{ $branches->isNotEmpty() ? 'required' : '' }}>
+                    @if (auth()->user()->role?->name === 'Owner')
+                        {{-- Owner bisa memilih cabang --}}
+                        <select name="branch_id" id="branch_id" class="form-select @error('branch_id') is-invalid @enderror"
+                            required>
+                            <option value="">Pilih Cabang</option>
 
-                        <option value="">{{ $branches->isEmpty() ? 'Tanpa Cabang' : 'Pilih Cabang' }}</option>
+                            @foreach ($branches as $branch)
+                                <option value="{{ $branch->id }}" @selected(old('branch_id') == $branch->id)>
+                                    {{ $branch->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    @else
+                        {{-- Karyawan menggunakan cabang akun --}}
+                        <input type="text" class="form-control"
+                            value="{{ auth()->user()->branch?->name ?? 'Cabang belum ditentukan' }}" readonly>
 
-                        @foreach ($branches as $branch)
+                        <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
+                    @endif
 
-                            <option value="{{ $branch->id }}" {{ old('branch_id') == $branch->id ? 'selected' : '' }}>
-
-                                {{ $branch->name }}
-
-                            </option>
-
-                        @endforeach
-
-                    </select>
+                    @error('branch_id')
+                        <div class="invalid-feedback d-block">
+                            {{ $message }}
+                        </div>
+                    @enderror
                 </div>
-
 
                 <div class="mb-3">
                     <label class="form-label">Nama Bahan</label>

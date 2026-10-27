@@ -38,6 +38,7 @@ class ProductionScheduleController extends Controller
 
         $query = ProductionOrder::with([
             'productVariant.product',
+            'customOrder',
             'branch',
             'users' => function ($query) use ($isOwner, $user) {
                 if (!$isOwner) {
@@ -45,8 +46,18 @@ class ProductionScheduleController extends Controller
                 }
             }
         ])
-            ->whereHas('productVariant.product', function ($query) use ($user) {
-                $query->where('tenant_id', $user->tenant_id);
+            ->where(function ($query) use ($user) {
+                $query->where(function ($regular) use ($user) {
+                    $regular->where('order_type', 'regular')
+                        ->whereHas('productVariant.product', function ($product) use ($user) {
+                            $product->where('tenant_id', $user->tenant_id);
+                        });
+                })->orWhere(function ($custom) use ($user) {
+                    $custom->where('order_type', 'custom')
+                        ->whereHas('customOrder', function ($order) use ($user) {
+                            $order->where('tenant_id', $user->tenant_id);
+                        });
+                });
             })
             ->whereDate('production_date', $date);
 

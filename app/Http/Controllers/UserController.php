@@ -73,7 +73,13 @@ class UserController extends Controller
             'file' => ['required', 'file', 'mimes:csv,xlsx', 'max:2048'],
         ]);
 
-        Excel::import(new UsersImport, $request->file('file'));
+        try {
+            Excel::import(new UsersImport, $request->file('file'));
+        } catch (\Exception $e) {
+            return back()->withErrors([
+                'file' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()
             ->route('users.index')

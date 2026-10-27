@@ -9,6 +9,50 @@ use Illuminate\Support\Facades\Storage;
 
 class ProductVariantController extends Controller
 {
+
+    public function store(Request $request, Product $product)
+    {
+        if ((int) $product->tenant_id !== (int) auth()->user()->tenant_id) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'status' => ['required', 'in:active,inactive'],
+            'image' => [
+                'nullable',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:2048',
+            ],
+        ]);
+
+        $imageName = null;
+
+        if ($request->hasFile('image')) {
+            $imageName = uniqid('pv_') . '.' .
+                $request->file('image')->extension();
+
+            $request->file('image')->storeAs(
+                'product_variants',
+                $imageName,
+                'public'
+            );
+        }
+
+        ProductVariant::create([
+            'product_id' => $product->id,
+            'name' => $data['name'],
+            'status' => $data['status'],
+            'price' => 0,
+            'image' => $imageName,
+        ]);
+
+        return redirect()
+            ->route('products.show', $product)
+            ->with('success', 'Varian produk berhasil ditambahkan.');
+    }
+
     public function edit(Product $product, ProductVariant $variant)
     {
         if ($product->tenant_id != auth()->user()->tenant_id) {

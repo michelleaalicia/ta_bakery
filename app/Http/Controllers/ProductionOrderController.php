@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use App\Models\Ingredient;
 use App\Models\Product;
 use App\Models\Branch;
 use App\Models\JobDescription;
@@ -16,14 +16,32 @@ use Illuminate\Validation\ValidationException;
 
 class ProductionOrderController extends Controller
 {
+
     public function index()
     {
+        $user = auth()->user();
+
         $productionOrders = ProductionOrder::with([
             'productVariant.product',
-            'branch'
+            'branch',
+            'customOrder',
         ])
-            ->whereHas('productVariant.product', function ($query) {
-                $query->where('tenant_id', $this->tenantId());
+            ->where(function ($query) use ($user) {
+                $query->where(function ($regular) use ($user) {
+                    $regular->where('order_type', 'regular')
+                        ->whereHas('productVariant.product', function ($product) use ($user) {
+                            $product->where('tenant_id', $user->tenant_id);
+                        });
+                })
+                    ->orWhere(function ($custom) use ($user) {
+                        $custom->where('order_type', 'custom')
+                            ->whereHas('customOrder', function ($order) use ($user) {
+                                $order->where('tenant_id', $user->tenant_id);
+                            });
+                    });
+            })
+            ->when($user->role?->name !== 'Owner', function ($query) use ($user) {
+                $query->where('branch_id', $user->branch_id);
             })
             ->latest()
             ->get();
@@ -130,14 +148,62 @@ class ProductionOrderController extends Controller
             $laborCost +
             $productionOrder->bop_cost;
 
-        $hppPerUnit = $productionOrder->hpp_per_unit;
+        $hppPerUnit = (float) $productionOrder->quantity > 0
+            ? $totalCost / (float) $productionOrder->quantity
+            : 0;
+
+        // Data pilihan tambahan hanya untuk produksi Custom yang berjalan.
+        $availableCustomIngredients = collect();
+        $availableCustomEmployees = collect();
+        $availableCustomJobs = collect();
+        $customActualsSaved = false;
+        $customMaterialOptions = [];
+        $customEmployeeOptions = [];
+        $customJobOptions = [];
+
+        if ($productionOrder->order_type === 'custom' && $productionOrder->status === 'in_progress') {
+            $custom = $productionOrder->customOrder;
+            if ($custom) {
+                $custom->load(['materials', 'labors']);
+                $availableCustomIngredients = Ingredient::where('tenant_id', $custom->tenant_id)
+                    ->where('branch_id', $productionOrder->branch_id)
+                    ->whereNotNull('ingredient_master_id')
+                    ->whereNotIn('id', $productionOrder->ingredients->pluck('id'))
+                    ->orderBy('name')->get(['id', 'name', 'unit', 'stock']);
+
+                $availableCustomEmployees = User::where('tenant_id', $custom->tenant_id)
+                    ->where('branch_id', $productionOrder->branch_id)
+                    ->where('status', 'active')
+                    ->whereHas('role', fn($q) => $q->where('name', 'Produksi'))
+                    ->whereNotIn('id', $productionOrder->users->pluck('id'))
+                    ->orderBy('name')->get(['id', 'name', 'wage_rate_per_hour']);
+
+                $availableCustomJobs = JobDescription::where('tenant_id', $custom->tenant_id)
+                    ->orderBy('name')->pluck('name');
+
+                $customMaterialOptions = $availableCustomIngredients->map(fn($i) => ['id' => $i->id, 'name' => $i->name, 'unit' => $i->unit])->values()->all();
+                $customEmployeeOptions = $availableCustomEmployees->map(fn($u) => ['id' => $u->id, 'name' => $u->name])->values()->all();
+                $customJobOptions = $availableCustomJobs->values()->all();
+
+                $customActualsSaved = DB::table('users_has_production_orders')
+                    ->where('production_order_id', $productionOrder->id)
+                    ->whereNotNull('updated_at')->exists();
+            }
+        }
 
         return view('production_orders.show', compact(
             'productionOrder',
             'materialCost',
             'laborCost',
             'totalCost',
-            'hppPerUnit'
+            'hppPerUnit',
+            'availableCustomIngredients',
+            'availableCustomEmployees',
+            'availableCustomJobs',
+            'customActualsSaved',
+            'customMaterialOptions',
+            'customEmployeeOptions',
+            'customJobOptions'
         ));
     }
 
@@ -281,6 +347,10 @@ class ProductionOrderController extends Controller
 
     private function completeProduction(ProductionOrder $productionOrder)
     {
+        if ($productionOrder->order_type === 'custom') {
+            return $this->completeCustomProduction($productionOrder);
+        }
+
         try {
             DB::transaction(function () use ($productionOrder) {
                 // Kunci data produksi agar tidak diproses selesai dua kali bersamaan.
@@ -294,7 +364,7 @@ class ProductionOrderController extends Controller
                     );
                 }
 
-                $order->load(['ingredients', 'productVariant']);
+                $order->load(['ingredients', 'users', 'productVariant']);
 
                 // Periksa semua stok bahan sebelum mengurangi stok.
                 foreach ($order->ingredients as $ingredient) {
@@ -340,21 +410,66 @@ class ProductionOrderController extends Controller
                     $stockQuery->whereNull('branch_id');
                 }
 
+
                 $productStock = $stockQuery->lockForUpdate()->first();
 
+                $materialCost = $order->ingredients->sum(
+                    fn($ingredient) =>
+                        (float) $ingredient->pivot->quantity_used *
+                        (float) $ingredient->pivot->unit_cost_used
+                );
+
+                $laborCost = $order->users->sum(
+                    fn($user) =>
+                        (float) $user->pivot->labor_hours *
+                        (float) ($user->pivot->labor_rate_per_hour ?? $user->wage_rate_per_hour)
+                );
+
+                $totalCost = $materialCost + $laborCost + (float) $order->bop_cost;
+
+                $newQuantity = (float) $order->quantity;
+
+                if ($newQuantity <= 0) {
+                    throw new \RuntimeException('Jumlah produksi harus lebih dari nol.');
+                }
+
+                $newUnitCost = round($totalCost / $newQuantity, 2);
+
                 if ($productStock) {
-                    $productStock->increment('stock', $order->quantity);
+                    $oldQuantity = (float) $productStock->stock;
+                    $oldUnitCost = $productStock->average_unit_cost;
+
+                    if ($oldQuantity > 0 && $oldUnitCost === null) {
+                        throw new \RuntimeException(
+                            'HPP saldo awal produk belum ditentukan. Lengkapi biaya stok lama terlebih dahulu.'
+                        );
+                    }
+
+                    $totalQuantity = $oldQuantity + $newQuantity;
+
+                    $averageUnitCost = (
+                        ($oldQuantity * (float) $oldUnitCost) +
+                        ($newQuantity * $newUnitCost)
+                    ) / $totalQuantity;
+
+                    $productStock->update([
+                        'stock' => $totalQuantity,
+                        'average_unit_cost' => round($averageUnitCost, 2),
+                    ]);
                 } else {
                     ProductVariantStock::create([
                         'product_variant_id' => $order->product_variant_id,
                         'branch_id' => $order->branch_id,
-                        'stock' => $order->quantity,
+                        'stock' => $newQuantity,
+                        'average_unit_cost' => $newUnitCost,
                     ]);
                 }
 
                 $order->update([
+                    'hpp_per_unit' => $newUnitCost,
                     'status' => 'completed',
                 ]);
+
             });
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
@@ -472,19 +587,21 @@ class ProductionOrderController extends Controller
 
     private function formData(): array
     {
-        $variants = ProductVariant::with('product')
+        $variants = ProductVariant::with(['product', 'recipe'])
             ->whereHas('product', function ($query) {
                 $query->where('tenant_id', $this->tenantId());
             })
             ->whereHas('recipe')
             ->get();
 
-
         $variantOptions = $variants->map(function ($variant) {
             return [
                 'id' => $variant->id,
                 'product_id' => $variant->product_id,
                 'name' => $variant->name,
+                'recipe_quantity' => (float) $variant->recipe->quantity,
+                'recipe_unit' => $variant->recipe->unit,
+                'production_time' => (float) $variant->recipe->production_time,
             ];
         })->values();
 
@@ -527,6 +644,10 @@ class ProductionOrderController extends Controller
 
     private function validateRequest(Request $request): array
     {
+        if (!$this->isOwner()) {
+            abort_if(!auth()->user()->branch_id, 403, 'Akun karyawan belum memiliki cabang.');
+            $request->merge(['branch_id' => auth()->user()->branch_id]);
+        }
         $request->merge([
             'bop_cost' => str_replace(
                 '.',
@@ -619,6 +740,9 @@ class ProductionOrderController extends Controller
 
     private function findBranch($id)
     {
+        if (!$this->isOwner()) {
+            abort_if((int) $id !== (int) auth()->user()->branch_id, 403);
+        }
         if (!$id) {
             return null;
         }
@@ -790,5 +914,129 @@ class ProductionOrderController extends Controller
                 'error',
                 'Produk - Varian ini belum memiliki resep.'
             );
+    }
+
+
+    private function completeCustomProduction(ProductionOrder $productionOrder)
+    {
+        try {
+            DB::transaction(function () use ($productionOrder) {
+                $order = ProductionOrder::whereKey($productionOrder->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($order->order_type !== 'custom' || $order->status !== 'in_progress') {
+                    throw new \RuntimeException('Status produksi tidak sesuai.');
+                }
+
+                if (!$order->customOrder) {
+                    throw new \RuntimeException('Custom Order tidak ditemukan.');
+                }
+
+                $order->load(['ingredients', 'users']);
+
+                if ($order->ingredients->isEmpty() || $order->users->isEmpty()) {
+                    throw new \RuntimeException('Data bahan atau tenaga kerja belum lengkap.');
+                }
+
+                $materialCost = 0;
+                $laborCost = 0;
+
+                foreach ($order->ingredients as $ingredient) {
+                    $quantity = (float) $ingredient->pivot->quantity_used;
+                    $unitCost = (float) $ingredient->pivot->unit_cost_used;
+
+                    if ($quantity < 0 || $unitCost < 0) {
+                        throw new \RuntimeException('Data biaya bahan tidak valid.');
+                    }
+
+                    $materialCost += $quantity * $unitCost;
+                }
+
+                foreach ($order->users as $user) {
+                    $hours = (float) $user->pivot->labor_hours;
+                    $rate = (float) $user->pivot->labor_rate_per_hour;
+
+                    if ($hours < 0 || $rate < 0) {
+                        throw new \RuntimeException('Data tenaga kerja tidak valid.');
+                    }
+
+                    $laborCost += $hours * $rate;
+                }
+
+                if (
+                    $order->ingredients->every(
+                        fn($ingredient) =>
+                            (float) $ingredient->pivot->quantity_used <= 0
+                    )
+                ) {
+                    throw new \RuntimeException('Pemakaian bahan aktual belum dicatat.');
+                }
+
+                if (
+                    $order->users->every(
+                        fn($user) =>
+                            (float) $user->pivot->labor_hours <= 0
+                    )
+                ) {
+                    throw new \RuntimeException('Jam kerja aktual belum dicatat.');
+                }
+
+                $lockedIngredients = [];
+
+                foreach ($order->ingredients->sortBy('id') as $ingredient) {
+                    $lockedIngredient = Ingredient::whereKey($ingredient->id)
+                        ->where('tenant_id', $order->customOrder->tenant_id)
+                        ->where('branch_id', $order->branch_id)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                    $quantity = (float) $ingredient->pivot->quantity_used;
+
+                    if ((float) $lockedIngredient->stock < $quantity) {
+                        throw new \RuntimeException(
+                            'Stok ' . $lockedIngredient->name . ' tidak mencukupi.'
+                        );
+                    }
+
+                    $lockedIngredients[] = [
+                        'ingredient' => $lockedIngredient,
+                        'quantity' => $quantity,
+                    ];
+                }
+
+                foreach ($lockedIngredients as $item) {
+                    if ($item['quantity'] > 0) {
+                        $item['ingredient']->decrement('stock', $item['quantity']);
+                    }
+                }
+
+                $bopCost = (float) $order->bop_cost;
+                $totalCost = $materialCost + $laborCost + $bopCost;
+
+                if ($order->quantity <= 0) {
+                    throw new \RuntimeException('Jumlah produksi tidak valid.');
+                }
+
+                $order->update([
+                    'hpp_per_unit' => round($totalCost / $order->quantity, 2),
+                    'status' => 'completed',
+                ]);
+            });
+
+            return back()->with(
+                'success',
+                'Produksi Custom selesai. Stok bahan berkurang dan HPP final tersimpan.'
+            );
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with(
+                'error',
+                'Produksi Custom gagal diselesaikan.'
+            );
+        }
     }
 }

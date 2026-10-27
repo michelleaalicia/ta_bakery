@@ -146,9 +146,20 @@ class ProductController extends Controller
             ->with('success', 'Produk berhasil diperbarui.');
     }
 
+
     public function destroy(Product $product)
     {
         $this->checkTenant($product);
+
+        if ($product->variants()->exists()) {
+            return redirect()
+                ->route('products.index')
+                ->with(
+                    'error',
+                    'Produk tidak dapat dihapus karena masih memiliki varian. '
+                    . 'Jika produk sudah tidak dijual, ubah statusnya menjadi Nonaktif.'
+                );
+        }
 
         $product->delete();
 

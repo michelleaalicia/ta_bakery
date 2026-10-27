@@ -25,6 +25,7 @@ class CustomOrder extends Model
         'estimated_overhead_rate',
         'estimated_bop_cost',
         'bop_description',
+        'delivered_at',
     ];
 
     public function tenant()
@@ -55,5 +56,12 @@ class CustomOrder extends Model
     public function payments()
     {
         return $this->hasMany(CustomOrderPayment::class);
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'delivered_at' => 'datetime',
+        ];
     }
 }

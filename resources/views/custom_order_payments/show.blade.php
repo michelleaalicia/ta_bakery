@@ -85,20 +85,23 @@
                     @csrf
 
                     @php
-                        $hasDp = $customOrder->payments->contains('payment_type', 'dp');
+                        $hasPayment = $customOrder->payments->isNotEmpty();
+                        $selectedType = $hasPayment ? 'pelunasan' : old('payment_type', 'dp');
                     @endphp
 
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Jenis Pembayaran</label>
                             <select name="payment_type" id="paymentType" class="form-select" required>
-                                @if (!$hasDp)
-                                    <option value="dp" @selected(old('payment_type') === 'dp')>
+                                @if (!$hasPayment)
+                                    <option value="dp" @selected($selectedType === 'dp')>
                                         DP
                                     </option>
-                                @else
-                                    <option value="pelunasan" selected>Pelunasan</option>
                                 @endif
+
+                                <option value="pelunasan" @selected($selectedType === 'pelunasan')>
+                                    Pelunasan
+                                </option>
                             </select>
                         </div>
 
@@ -117,11 +120,8 @@
                         <div class="col-md-6">
                             <label class="form-label">Nominal Pembayaran (Rp)</label>
                             <input type="text" name="amount" id="paymentAmount" inputmode="numeric" class="form-control"
-                                value="{{ old('amount', $hasDp ? (int) $remaining : '') }}" placeholder="Masukkan nominal"
-                                required @readonly($hasDp)>
-                            @if ($hasDp)
-                                <div class="form-text">Pelunasan harus sebesar sisa tagihan.</div>
-                            @endif
+                                value="{{ old('amount', $hasPayment ? (int) $remaining : '') }}" placeholder="Masukkan nominal"
+                                required>
                         </div>
 
                         <div class="col-md-6">
@@ -157,6 +157,7 @@
                             <th>Jenis</th>
                             <th>Metode</th>
                             <th>Nominal</th>
+                            <th>Nota</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -167,10 +168,16 @@
                                 <td>{{ $payment->payment_type === 'dp' ? 'DP' : 'Pelunasan' }}</td>
                                 <td>{{ $payment->payment_method }}</td>
                                 <td>Rp {{ number_format($payment->amount, 0, ',', '.') }}</td>
+                                <td>
+                                    <a href="{{ route('custom_order_payments.receipt', [$customOrder, $payment]) }}"
+                                        class="btn btn-outline-dark btn-sm" target="_blank" rel="noopener">
+                                        <i class="bi bi-file-earmark-pdf"></i> Cetak PDF
+                                    </a>
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center text-muted">
+                                <td colspan="6" class="text-center text-muted">
                                     Belum ada pembayaran.
                                 </td>
                             </tr>
@@ -189,13 +196,48 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const typeInput = document.getElementById('paymentType');
             const amountInput = document.getElementById('paymentAmount');
+            const hint = document.getElementById('paymentHint');
 
-            if (!amountInput || amountInput.readOnly) return;
+            if (!typeInput || !amountInput) return;
+
+            const remaining = @json((int) round($remaining));
+            const isOldSubmission = @json(old('amount') !== null);
+
+            function updatePaymentType(preserveOldValue = false) {
+                const isFullPayment = typeInput.value === 'pelunasan';
+
+                if (isFullPayment) {
+                    amountInput.value = String(remaining);
+                    amountInput.readOnly = true;
+
+                    hint.textContent =
+                        'Pelunasan sebesar sisa tagihan: Rp ' +
+                        new Intl.NumberFormat('id-ID').format(remaining);
+                } else {
+                    amountInput.readOnly = false;
+
+                    if (!preserveOldValue) {
+                        amountInput.value = '';
+                    }
+
+                    hint.textContent =
+                        'DP harus lebih kecil dari total tagihan.';
+                }
+            }
+
+            typeInput.addEventListener('change', function () {
+                updatePaymentType();
+            });
 
             amountInput.addEventListener('input', function () {
-                this.value = this.value.replace(/\D/g, '');
+                if (!this.readOnly) {
+                    this.value = this.value.replace(/\D/g, '');
+                }
             });
+
+            updatePaymentType(isOldSubmission);
         });
     </script>
 @endpush

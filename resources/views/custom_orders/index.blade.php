@@ -56,44 +56,49 @@
 
                     <tbody>
                         @foreach ($orders as $order)
-                                        <tr>
-                                            <td>{{ $loop->iteration }}</td>
-                                            <td>{{ $order->order_number }}</td>
-                                            <td>{{ $order->customer_name }}</td>
-                                            <td>{{ $order->product_name }}</td>
-                                            <td>{{ $order->branch?->name ?? '-' }}</td>
-                                            <td>{{ $order->quantity }}</td>
+                                            <tr>
+                                                <td>{{ $loop->iteration }}</td>
+                                                <td>{{ $order->order_number }}</td>
+                                                <td>{{ $order->customer_name }}</td>
+                                                <td>{{ $order->product_name }}</td>
+                                                <td>{{ $order->branch?->name ?? '-' }}</td>
+                                                <td>{{ $order->quantity }}</td>
 
-                                            <td data-order="{{ $order->required_date }}">
-                                                {{ \Carbon\Carbon::parse($order->required_date)->format('d/m/Y') }}
-                                            </td>
+                                                <td data-order="{{ $order->required_date }}">
+                                                    {{ \Carbon\Carbon::parse($order->required_date)->format('d/m/Y') }}
+                                                </td>
 
-                                            <td>
-                                                {{ $order->selling_price !== null
-                            ? 'Rp ' . number_format($order->selling_price, 0, ',', '.')
-                            : 'Belum ditetapkan' }}
-                                            </td>
+                                                <td>
+                                                    {{ $order->selling_price !== null
+                                ? 'Rp ' . number_format($order->selling_price, 0, ',', '.')
+                                : 'Belum ditetapkan' }}
+                                                </td>
 
-                                            <td>
-                                                <span class="badge bg-secondary">
-                                                    {{ ucfirst($order->status) }}
-                                                </span>
-                                            </td>
+                                                <td>
+                                                    <span class="badge bg-secondary">
+                                                        {{ match ($order->status) {
+                                'draft' => 'Draft',
+                                'confirmed' => 'Dikonfirmasi',
+                                'delivered' => 'Diserahkan',
+                                default => ucfirst($order->status),
+                            } }}
+                                                    </span>
+                                                </td>
 
-                                            <td>
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <a href="{{ route('custom_orders.show', $order) }}" class="btn btn-info btn-sm">
-                                                        Detail
-                                                    </a>
-
-                                                    @if ($order->status === 'draft' && auth()->user()->role?->name === 'Owner')
-                                                        <a href="{{ route('custom_orders.edit', $order) }}" class="btn btn-warning btn-sm">
-                                                            Edit
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <a href="{{ route('custom_orders.show', $order) }}" class="btn btn-info btn-sm">
+                                                            Detail
                                                         </a>
-                                                    @endif
-                                                </div>
-                                            </td>
-                                        </tr>
+
+                                                        @if ($order->status === 'draft' && auth()->user()->role?->name === 'Owner')
+                                                            <a href="{{ route('custom_orders.edit', $order) }}" class="btn btn-warning btn-sm">
+                                                                Edit
+                                                            </a>
+                                                        @endif
+                                                    </div>
+                                                </td>
+                                            </tr>
                         @endforeach
                     </tbody>
                 </table>
@@ -146,7 +151,7 @@
         document.addEventListener('DOMContentLoaded', function () {
             const table = new DataTable('#customOrdersTable', {
                 pageLength: 10,
-                order: [[6, 'asc']],
+                order: [[1, 'asc']],
                 autoWidth: false,
 
                 layout: {

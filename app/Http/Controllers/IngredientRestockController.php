@@ -16,11 +16,13 @@ class IngredientRestockController extends Controller
         $tenantId = auth()->user()->tenant_id;
 
         $branches = Branch::where('tenant_id', $tenantId)
+            ->when(auth()->user()->role?->name !== 'Owner', fn ($q) => $q->whereKey(auth()->user()->branch_id))
             ->orderBy('name')
             ->get();
 
         $ingredients = Ingredient::where('tenant_id', $tenantId)
             ->whereNotNull('branch_id')
+            ->when(auth()->user()->role?->name !== 'Owner', fn ($q) => $q->where('branch_id', auth()->user()->branch_id))
             ->orderBy('name')
             ->get();
 
@@ -32,6 +34,10 @@ class IngredientRestockController extends Controller
 
     public function store(Request $request)
     {
+        if (auth()->user()->role?->name !== 'Owner') {
+            abort_if(!auth()->user()->branch_id, 403, 'Akun karyawan belum memiliki cabang.');
+            $request->merge(['branch_id' => auth()->user()->branch_id]);
+        }
         $data = $request->validate([
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
             'ingredient_id' => ['required', 'integer', 'exists:ingredients,id'],

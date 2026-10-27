@@ -106,6 +106,23 @@
                     </select>
                 </div>
 
+
+                <div class="col-md-2">
+                    <label for="filterBranch" class="form-label">
+                        Cabang
+                    </label>
+
+                    <select id="filterBranch" class="form-select">
+                        <option value="">Semua Cabang</option>
+
+                        @foreach ($users->pluck('branch.name')->filter()->unique()->sort() as $branchName)
+                            <option value="{{ $branchName }}">
+                                {{ $branchName }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
                 <div class="col-md-2">
                     <label for="pageLength" class="form-label">
                         Tampilkan Data
@@ -242,7 +259,7 @@
                         orderable: false
                     },
                     {
-                        targets: [0, 4, 5, 6, 7],
+                        targets: [0, 5, 6, 7],
                         searchable: false
                     },
                     {
@@ -293,6 +310,15 @@
                     table.column(3).search(function (value) {
                         return role === '' || value.trim() === role;
                     }).draw();
+                });
+
+            document.getElementById('filterBranch')
+                .addEventListener('change', function () {
+                    const branch = this.value.trim();
+
+                    table.column(4)
+                        .search(branch, { exact: true })
+                        .draw();
                 });
 
             document.getElementById('pageLength')

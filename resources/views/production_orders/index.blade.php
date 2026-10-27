@@ -151,15 +151,28 @@
                     </thead>
 
                     <tbody>
+
                         @foreach ($productionOrders as $productionOrder)
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
 
-                                <td>{{ $productionOrder->productVariant->product->name }}</td>
+                                <td>
+                                    @if ($productionOrder->order_type === 'custom')
+                                        {{ $productionOrder->customOrder?->product_name ?? 'Produk Custom' }}
+                                    @else
+                                        {{ $productionOrder->productVariant?->product?->name ?? '-' }}
+                                    @endif
+                                </td>
 
-                                <td>{{ $productionOrder->productVariant->name }}</td>
+                                <td>
+                                    @if ($productionOrder->order_type === 'custom')
+                                        Custom
+                                    @else
+                                        {{ $productionOrder->productVariant?->name ?? '-' }}
+                                    @endif
+                                </td>
 
-                                <td>{{ $productionOrder->branch->name }}</td>
+                                <td>{{ $productionOrder->branch?->name ?? 'Bakery Utama' }}</td>
 
                                 <td data-order="{{ $productionOrder->quantity }}">
                                     {{ rtrim(rtrim(number_format($productionOrder->quantity, 2, ',', '.'), '0'), ',') }}
@@ -188,21 +201,22 @@
                                         Detail
                                     </a>
 
-                                    <a href="{{ route('production_orders.edit', $productionOrder) }}"
-                                        class="btn btn-warning btn-sm">
-                                        Edit
-                                    </a>
+                                    @if ($productionOrder->status === 'planned' && $productionOrder->order_type === 'regular')
+                                        <a href="{{ route('production_orders.edit', $productionOrder) }}"
+                                            class="btn btn-warning btn-sm">
+                                            Edit
+                                        </a>
 
-                                    <form action="{{ route('production_orders.destroy', $productionOrder) }}" method="POST"
-                                        class="d-inline" onsubmit="return confirm('Yakin ingin menghapus produksi ini?')">
+                                        <form action="{{ route('production_orders.destroy', $productionOrder) }}" method="POST"
+                                            class="d-inline" onsubmit="return confirm('Yakin ingin menghapus produksi ini?')">
+                                            @csrf
+                                            @method('DELETE')
 
-                                        @csrf
-                                        @method('DELETE')
-
-                                        <button type="submit" class="btn btn-danger btn-sm">
-                                            Hapus
-                                        </button>
-                                    </form>
+                                            <button type="submit" class="btn btn-danger btn-sm">
+                                                Hapus
+                                            </button>
+                                        </form>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach
@@ -222,7 +236,7 @@
 
             const table = new DataTable('#productionTable', {
                 pageLength: 10,
-                order: [[5, 'desc']],
+                order: [[1, 'asc']],
                 autoWidth: false,
 
                 layout: {

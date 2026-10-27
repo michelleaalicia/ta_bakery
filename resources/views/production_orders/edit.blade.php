@@ -16,12 +16,15 @@
                     <div class="mb-3">
                         <label class="form-label">Cabang</label>
 
-                        <select name="branch_id" id="branch_id" class="form-select" required>
+                        @if (auth()->user()->role?->name !== 'Owner')
+                        <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
+                    @endif
+                    <select name="branch_id" id="branch_id" class="form-select" required {{ auth()->user()->role?->name !== 'Owner' ? 'disabled' : '' }}>
                             <option value="">Pilih cabang</option>
 
                             @foreach ($branches as $branch)
                                 <option value="{{ $branch->id }}"
-                                    {{ old('branch_id', $productionOrder->branch_id) == $branch->id ? 'selected' : '' }}>
+                                    {{ (auth()->user()->role?->name !== 'Owner' ? auth()->user()->branch_id : old('branch_id', $productionOrder->branch_id)) == $branch->id ? 'selected' : '' }}>
                                     {{ $branch->name }}
                                 </option>
                             @endforeach
@@ -81,10 +84,6 @@
                         <input type="text" name="bop_cost" id="bop_cost"
                             value="{{ old('bop_cost', number_format($productionOrder->bop_cost, 0, ',', '.')) }}"
                             class="form-control" placeholder="Contoh: 50000" required>
-                    </div>
-
-                    <div class="form-text">
-                        Masukkan biaya overhead untuk produksi ini.
                     </div>
                 </div>
 

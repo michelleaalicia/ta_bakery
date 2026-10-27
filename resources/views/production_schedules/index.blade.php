@@ -152,9 +152,11 @@
                                 <tr>
                                     <td>{{ $no++ }}</td>
 
-                                    <td>{{ $schedule->productVariant->product->name }}</td>
+                                    <td>{{ $schedule->order_type === 'custom' ? ($schedule->customOrder?->product_name ?? 'Produk Custom') : ($schedule->productVariant?->product?->name ?? '-') }}
+                                    </td>
 
-                                    <td>{{ $schedule->productVariant->name }}</td>
+                                    <td>{{ $schedule->order_type === 'custom' ? 'Custom' : ($schedule->productVariant?->name ?? '-') }}
+                                    </td>
 
                                     <td>{{ $schedule->branch?->name ?? 'Bakery Utama' }}</td>
 
@@ -169,7 +171,8 @@
                                     <td>{{ $employee->pivot->job_description }}</td>
 
                                     <td data-order="{{ $employee->pivot->labor_hours }}">
-                                        {{ (float) $employee->pivot->labor_hours }} jam
+                                        {{ rtrim(rtrim(number_format((float) $employee->pivot->labor_hours, 2, ',', '.'), '0'), ',') }}
+                                        jam
                                     </td>
 
                                     <td>

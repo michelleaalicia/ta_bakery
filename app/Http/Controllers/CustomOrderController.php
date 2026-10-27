@@ -66,6 +66,10 @@ class CustomOrderController extends Controller
     public function store(Request $request)
     {
         $user = auth()->user();
+        if ($user->role?->name !== 'Owner') {
+            abort_if(!$user->branch_id, 403, 'Akun karyawan belum memiliki cabang.');
+            $request->merge(['branch_id' => $user->branch_id]);
+        }
 
         $data = $request->validate([
             'branch_id' => [
@@ -225,6 +229,10 @@ class CustomOrderController extends Controller
         $this->authorizeOwner();
 
         $user = auth()->user();
+        if ($user->role?->name !== 'Owner') {
+            abort_if(!$user->branch_id, 403, 'Akun karyawan belum memiliki cabang.');
+            $request->merge(['branch_id' => $user->branch_id]);
+        }
 
         $data = $request->validate([
             'branch_id' => [
@@ -274,7 +282,9 @@ class CustomOrderController extends Controller
 
         $ingredients = $ingredients->keyBy('ingredient_master_id');
 
-        DB::transaction(function () use ($customOrder, $data, $ingredients) {
+        $requiresPriceReview = false;
+
+        DB::transaction(function () use ($customOrder, $data, $ingredients, &$requiresPriceReview) {
             $order = CustomOrder::whereKey($customOrder->id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -285,6 +295,39 @@ class CustomOrderController extends Controller
                 ]);
             }
 
+            // Jangan pindahkan estimasi tenaga kerja ke cabang lain secara diam-diam.
+            // Karyawan yang telah dipilih adalah karyawan cabang semula.
+            if ((int) $order->branch_id !== (int) $data['branch_id']
+                && $order->labors()->exists()) {
+                throw ValidationException::withMessages([
+                    'branch_id' => 'Cabang tidak bisa diubah setelah estimasi tenaga kerja diisi. Pertahankan cabang ini agar penugasan karyawan tetap valid.',
+                ]);
+            }
+
+            // Tandai kebutuhan peninjauan harga, tanpa menghapus harga yang sudah ada.
+            $oldMaterials = $order->materials()->get()
+                ->mapWithKeys(fn ($item) => [
+                    (string) $item->ingredient_master_id => [
+                        'quantity' => round((float) $item->quantity, 3),
+                        'cost' => round((float) $item->estimated_unit_cost, 2),
+                    ],
+                ])->sortKeys()->all();
+
+            $newMaterials = collect($data['materials'])
+                ->mapWithKeys(function ($item) use ($ingredients) {
+                    $ingredient = $ingredients->get($item['ingredient_master_id']);
+                    return [(string) $item['ingredient_master_id'] => [
+                        'quantity' => round((float) $item['quantity'], 3),
+                        'cost' => round((float) $ingredient->unit_cost, 2),
+                    ]];
+                })->sortKeys()->all();
+
+            $requiresPriceReview = $oldMaterials !== $newMaterials
+                || (int) $order->quantity !== (int) $data['quantity']
+                || (int) $order->branch_id !== (int) $data['branch_id']
+                || $order->product_name !== $data['product_name']
+                || $order->specification !== $data['specification'];
+
             $order->update([
                 'branch_id' => $data['branch_id'],
                 'customer_name' => $data['customer_name'],
@@ -294,14 +337,10 @@ class CustomOrderController extends Controller
                 'quantity' => $data['quantity'],
                 'order_date' => $data['order_date'],
                 'required_date' => $data['required_date'],
-                'selling_price' => null,
             ]);
 
-            $order->labors()->delete();
-
-            $order->update([
-                'estimated_bop_cost' => null,
-            ]);
+            // Estimasi BTKL, BOP dan harga jual dipertahankan.
+            // Hanya rencana bahan yang diganti berdasarkan edit.
 
             $order->materials()->delete();
 
@@ -323,12 +362,14 @@ class CustomOrderController extends Controller
             }
         });
 
-        return redirect()
-            ->route('custom_orders.show', $customOrder)
-            ->with(
-                'success',
-                'Custom Order berhasil diperbarui.'
-            );
+        $redirect = redirect()->route('custom_orders.show', $customOrder)
+            ->with('success', 'Custom Order berhasil diperbarui. Estimasi tenaga kerja, BOP, dan harga penawaran tetap tersimpan.');
+
+        if ($requiresPriceReview && $customOrder->selling_price !== null) {
+            $redirect->with('error', 'Rencana biaya atau spesifikasi berubah. Periksa kembali HPP dan harga penawaran sebelum mengonfirmasi pesanan. Harga sebelumnya tetap tersimpan.');
+        }
+
+        return $redirect;
     }
 
 
@@ -342,6 +383,8 @@ class CustomOrderController extends Controller
             'labors.user',
             'payments',
         ]);
+
+        $customOrder->loadMissing(['productionOrder', 'payments']);
 
         $materialCost = (float) $customOrder->materials->sum('estimated_total_cost');
         $laborCost = (float) $customOrder->labors->sum('estimated_cost');
@@ -396,7 +439,8 @@ class CustomOrderController extends Controller
 
         $data = $request->validate([
             'labors' => ['required', 'array', 'min:1'],
-            'labors.*.user_id' => ['required', 'integer', 'distinct'],
+            // Satu karyawan boleh mengerjakan beberapa pekerjaan.
+            'labors.*.user_id' => ['required', 'integer'],
             'labors.*.job_description' => [
                 'required',
                 'string',
@@ -417,6 +461,17 @@ class CustomOrderController extends Controller
             ],
         ]);
 
+        // Duplikasi karyawan + pekerjaan tidak boleh, tetapi karyawan
+        // dengan beberapa pekerjaan berbeda tetap diperbolehkan.
+        $pairs = collect($data['labors'])
+            ->map(fn($labor) => $labor['user_id'] . '|' . $labor['job_description']);
+
+        if ($pairs->count() !== $pairs->unique()->count()) {
+            throw ValidationException::withMessages([
+                'labors' => 'Karyawan dan pekerjaan yang sama tidak boleh ditambahkan dua kali.',
+            ]);
+        }
+
         DB::transaction(function () use ($customOrder, $data) {
             $order = CustomOrder::whereKey($customOrder->id)
                 ->lockForUpdate()
@@ -428,7 +483,10 @@ class CustomOrderController extends Controller
                 ]);
             }
 
-            $userIds = collect($data['labors'])->pluck('user_id');
+            // Pivot produksi hanya punya satu baris untuk setiap user.
+            // Karena itu beberapa job digabung ke satu record estimasi.
+            $groupedLabors = collect($data['labors'])->groupBy('user_id');
+            $userIds = $groupedLabors->keys();
 
             $users = User::where('tenant_id', $order->tenant_id)
                 ->where('branch_id', $order->branch_id)
@@ -444,32 +502,52 @@ class CustomOrderController extends Controller
                 ]);
             }
 
-            foreach ($users as $user) {
-                if (
-                    $user->wage_rate_per_hour === null ||
-                    (float) $user->wage_rate_per_hour <= 0
-                ) {
+            $preparedLabors = [];
+
+            foreach ($groupedLabors as $userId => $tasks) {
+                $user = $users->get($userId);
+                $rate = (float) $user->wage_rate_per_hour;
+
+                if ($user->wage_rate_per_hour === null || $rate <= 0) {
                     throw ValidationException::withMessages([
                         'labors' => 'Tarif upah ' . $user->name . ' belum valid.',
                     ]);
                 }
+
+                // Simpan rincian pekerjaan dan masing-masing jam di kolom
+                // job_description agar tetap dapat dibaca tanpa migrasi.
+                $description = $tasks->map(function ($task) {
+                    $hours = rtrim(rtrim(number_format((float) $task['estimated_hours'], 2, '.', ''), '0'), '.');
+                    return $task['job_description'] . ' (' . $hours . ' jam)';
+                })->implode('; ');
+
+                if (mb_strlen($description) > 255) {
+                    throw ValidationException::withMessages([
+                        'labors' => 'Rincian pekerjaan ' . $user->name . ' terlalu panjang. Kurangi jumlah pekerjaan.',
+                    ]);
+                }
+
+                $hours = round((float) $tasks->sum('estimated_hours'), 2);
+
+                if ($hours <= 0 || $hours > 999999) {
+                    throw ValidationException::withMessages([
+                        'labors' => 'Total jam kerja ' . $user->name . ' tidak valid.',
+                    ]);
+                }
+
+                $preparedLabors[] = [
+                    'user_id' => $user->id,
+                    'job_description' => $description,
+                    'estimated_hours' => $hours,
+                    'estimated_rate' => $rate,
+                    'estimated_cost' => round($hours * $rate, 2),
+                ];
             }
 
             $order->labors()->delete();
 
-            foreach ($data['labors'] as $labor) {
-                $user = $users->get($labor['user_id']);
-
-                $hours = (float) $labor['estimated_hours'];
-                $rate = (float) $user->wage_rate_per_hour;
-
-                $order->labors()->create([
-                    'user_id' => $user->id,
-                    'job_description' => $labor['job_description'],
-                    'estimated_hours' => $hours,
-                    'estimated_rate' => $rate,
-                    'estimated_cost' => round($hours * $rate, 2),
-                ]);
+            foreach ($preparedLabors as $labor) {
+                $order->labors()->create($labor);
             }
 
             $order->update([
@@ -480,7 +558,7 @@ class CustomOrderController extends Controller
 
         return back()->with(
             'success',
-            'Estimasi BTKL dan BOP berhasil disimpan. Harga penawaran perlu ditetapkan ulang.'
+            'Estimasi BTKL dan BOP berhasil disimpan.'
         );
     }
 

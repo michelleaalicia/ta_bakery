@@ -72,10 +72,6 @@
                     <input type="file" name="image" id="image" class="form-control @error('image') is-invalid @enderror"
                         accept=".jpg,.jpeg,.png,.webp">
 
-                    <div class="form-text">
-                        Kosongkan jika tidak ingin mengganti gambar.
-                    </div>
-
                     @error('image')
                         <div class="invalid-feedback">
                             {{ $message }}

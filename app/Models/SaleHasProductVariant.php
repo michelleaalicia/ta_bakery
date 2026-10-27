@@ -19,11 +19,13 @@ class SaleHasProductVariant extends Model
         'product_variant_id',
         'quantity',
         'unit_price',
+        'unit_cost',
     ];
 
     protected $casts = [
         'quantity' => 'decimal:2',
         'unit_price' => 'decimal:2',
+        'unit_cost' => 'decimal:2',
     ];
 
     public function sale()

@@ -19,10 +19,13 @@
 
                 <div class="mb-3">
                     <label for="branch_id" class="form-label">Cabang</label>
-                    <select name="branch_id" id="branch_id" class="form-select" required>
+                    @if (auth()->user()->role?->name !== 'Owner')
+                        <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
+                    @endif
+                    <select name="branch_id" id="branch_id" class="form-select" required {{ auth()->user()->role?->name !== 'Owner' ? 'disabled' : '' }}>
                         <option value="">Pilih Cabang</option>
                         @foreach ($branches as $branch)
-                            <option value="{{ $branch->id }}" @selected(old('branch_id') == $branch->id)>
+                            <option value="{{ $branch->id }}" @selected((auth()->user()->role?->name !== 'Owner' ? auth()->user()->branch_id : old('branch_id')) == $branch->id)>
                                 {{ $branch->name }}
                             </option>
                         @endforeach

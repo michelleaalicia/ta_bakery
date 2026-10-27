@@ -11,7 +11,7 @@
 
             <div class="mb-3">
                 <a href="{{ route('job-descriptions.create') }}" class="btn btn-dark btn-sm">
-                    <i class="bi bi-plus-lg"></i> Tambah Job Description
+                    Tambah Job Description
                 </a>
             </div>
 
@@ -71,6 +71,12 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+
+            <div class="mt-3">
+                <a href="{{ route('users.index') }}" class="btn btn-secondary btn-sm">
+                    Kembali
+                </a>
             </div>
 
         </div>

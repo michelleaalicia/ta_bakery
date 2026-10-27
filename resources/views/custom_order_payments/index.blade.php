@@ -4,6 +4,44 @@
 @section('page-title', 'Pembayaran Custom Order')
 
 @section('content')
+
+    <style>
+        #paymentsTable thead th .dt-column-order {
+            display: none !important;
+        }
+
+        #paymentsTable thead th.dt-orderable-asc,
+        #paymentsTable thead th.dt-orderable-desc {
+            position: relative;
+            padding-right: 28px !important;
+            cursor: pointer;
+        }
+
+        #paymentsTable thead th.dt-orderable-asc::after,
+        #paymentsTable thead th.dt-orderable-desc::after {
+            content: '↕';
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #555 !important;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        #paymentsTable thead th.dt-ordering-asc::after {
+            content: '▲';
+            color: #111 !important;
+            font-size: 11px;
+        }
+
+        #paymentsTable thead th.dt-ordering-desc::after {
+            content: '▼';
+            color: #111 !important;
+            font-size: 11px;
+        }
+    </style>
+
     <div class="card">
         <div class="card-body">
             <div class="row g-3 mb-3">
@@ -112,7 +150,7 @@
         document.addEventListener('DOMContentLoaded', function () {
             const table = new DataTable('#paymentsTable', {
                 pageLength: 10,
-                order: [[1, 'desc']],
+                order: [[1, 'asc']],
                 autoWidth: false,
                 layout: {
                     topStart: null,

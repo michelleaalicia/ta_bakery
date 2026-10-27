@@ -127,12 +127,6 @@ class CustomOrderPaymentController extends Controller
             }
 
             if ($data['payment_type'] === 'pelunasan') {
-                if (!$order->payments()->where('payment_type', 'dp')->exists()) {
-                    throw ValidationException::withMessages([
-                        'payment_type' => 'Catat DP terlebih dahulu.',
-                    ]);
-                }
-
                 if (abs($amount - $remaining) > 0.001) {
                     throw ValidationException::withMessages([
                         'amount' => 'Pelunasan harus sama dengan sisa tagihan.',
@@ -151,6 +145,40 @@ class CustomOrderPaymentController extends Controller
         return redirect()
             ->route('custom_order_payments.show', $customOrder)
             ->with('success', 'Pembayaran berhasil dicatat.');
+    }
+
+    public function receipt(CustomOrder $customOrder, CustomOrderPayment $payment)
+    {
+        $this->authorizeOrder($customOrder);
+
+        $payment = $customOrder->payments()
+            ->whereKey($payment->id)
+            ->firstOrFail();
+
+        $customOrder->load(['tenant', 'branch']);
+
+        $paidBefore = (float) $customOrder->payments()
+            ->where('id', '<', $payment->id)
+            ->sum('amount');
+
+        $totalPrice = (float) $customOrder->selling_price;
+        $amount = (float) $payment->amount;
+        $paidAfter = $paidBefore + $amount;
+        $remaining = max(0, $totalPrice - $paidAfter);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('custom_order_payments.receipt', compact(
+            'customOrder',
+            'payment',
+            'totalPrice',
+            'paidBefore',
+            'amount',
+            'paidAfter',
+            'remaining'
+        ))->setPaper('a5', 'portrait');
+
+        $filename = 'nota-' . $customOrder->order_number . '-' . $payment->id . '.pdf';
+
+        return $pdf->stream($filename);
     }
 
     private function authorizeOrder(CustomOrder $customOrder): void

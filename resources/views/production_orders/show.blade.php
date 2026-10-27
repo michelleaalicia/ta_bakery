@@ -126,77 +126,65 @@
             </div>
 
 
-            {{-- Bahan Baku --}}
-            <div class="mb-4">
+            {{-- Pisahkan bahan estimasi Custom Order dari bahan yang ditambahkan saat produksi. --}}
+            @php
+                $plannedMaterialMasterIds = $productionOrder->order_type === 'custom'
+                    ? ($productionOrder->customOrder?->materials?->pluck('ingredient_master_id')->map(fn($id) => (string) $id)->all() ?? [])
+                    : [];
 
-                <h6 class="fw-semibold mb-3">
-                    Bahan Baku
-                </h6>
+                $mainProductionIngredients = $productionOrder->order_type === 'custom'
+                    ? $productionOrder->ingredients->filter(fn($ingredient) => in_array((string) $ingredient->ingredient_master_id, $plannedMaterialMasterIds, true))->values()
+                    : $productionOrder->ingredients;
 
-                <div class="table-responsive">
+                $extraProductionIngredients = $productionOrder->order_type === 'custom'
+                    ? $productionOrder->ingredients->reject(fn($ingredient) => in_array((string) $ingredient->ingredient_master_id, $plannedMaterialMasterIds, true))->values()
+                    : collect();
+            @endphp
 
-                    <table class="table table-bordered align-middle">
-
-                        <thead>
-                            <tr>
-                                <th style="width: 60px;">No</th>
-                                <th>Nama Bahan</th>
-                                <th>Jumlah Digunakan</th>
-                                <th>Harga/Satuan</th>
-                                <th>Total Biaya</th>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-
-                            @forelse ($productionOrder->ingredients as $ingredient)
-
-                                @php
-                                    $totalIngredientCost =
-                                        $ingredient->pivot->quantity_used *
-                                        $ingredient->pivot->unit_cost_used;
-                                @endphp
-
-                                <tr>
-
-                                    <td>{{ $loop->iteration }}</td>
-
-                                    <td>
-                                        {{ $ingredient->name }}
-                                    </td>
-
-                                    <td>
-                                        {{ rtrim(rtrim(number_format($ingredient->pivot->quantity_used, 2, ',', '.'), '0'), ',') }}
-                                        {{ $ingredient->unit }}
-                                    </td>
-
-                                    <td>
-                                        Rp {{ number_format($ingredient->pivot->unit_cost_used, 0, ',', '.') }}
-                                    </td>
-
-                                    <td>
-                                        Rp {{ number_format($totalIngredientCost, 0, ',', '.') }}
-                                    </td>
-
-                                </tr>
-
-                            @empty
-
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted py-3">
-                                        Belum ada bahan baku.
-                                    </td>
-                                </tr>
-
-                            @endforelse
-
-                        </tbody>
-
-                    </table>
-
-                </div>
-
-            </div>
+            @foreach ([
+                    ['title' => 'Bahan Baku', 'items' => $mainProductionIngredients],
+                    ['title' => 'Bahan Tambahan', 'items' => $extraProductionIngredients],
+                ] as $section)
+                @if ($section['title'] === 'Bahan Baku' || ($productionOrder->order_type === 'custom' && $section['items']->isNotEmpty()))
+                    <div class="mb-4">
+                        <h6 class="fw-semibold mb-3">{{ $section['title'] }}</h6>
+                        <div class="table-responsive">
+                            <table class="table table-bordered align-middle">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 60px;">No</th>
+                                        <th>Nama Bahan</th>
+                                        <th>Jumlah Digunakan</th>
+                                        <th>Harga/Satuan</th>
+                                        <th>Total Biaya</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse ($section['items'] as $ingredient)
+                                        @php
+                                            $totalIngredientCost = $ingredient->pivot->quantity_used * $ingredient->pivot->unit_cost_used;
+                                        @endphp
+                                        <tr>
+                                            <td>{{ $loop->iteration }}</td>
+                                            <td>{{ $ingredient->name }}</td>
+                                            <td>
+                                                {{ rtrim(rtrim(number_format($ingredient->pivot->quantity_used, 2, ',', '.'), '0'), ',') }}
+                                                {{ $ingredient->unit }}
+                                            </td>
+                                            <td>Rp {{ number_format($ingredient->pivot->unit_cost_used, 0, ',', '.') }}</td>
+                                            <td>Rp {{ number_format($totalIngredientCost, 0, ',', '.') }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-3">Belum ada bahan baku.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endif
+            @endforeach
 
 
             {{-- Karyawan --}}
@@ -278,56 +266,174 @@
             </div>
 
 
-            @if (
-                    $productionOrder->order_type === 'custom' &&
-                    $productionOrder->status === 'in_progress'
-                )
+            @if ($productionOrder->order_type === 'custom' && $productionOrder->status === 'in_progress')
+                @php
+                    $plannedMaterials = $productionOrder->customOrder?->materials?->keyBy('ingredient_master_id') ?? collect();
+                    $plannedLabors = $productionOrder->customOrder?->labors?->keyBy('user_id') ?? collect();
+                    $formatActual = fn($value) => rtrim(rtrim(number_format((float) $value, 2, '.', ''), '0'), '.');
+                @endphp
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h6 class="fw-semibold mb-3">
-                            Pencatatan Biaya Aktual
-                        </h6>
+                        <h6 class="fw-semibold mb-2">Pencatatan Biaya Aktual</h6>
+                        <p class="text-muted small mb-3">
+                            Angka estimasi ditampilkan sebagai isian awal sebelum aktual pertama disimpan.
+                            Sesuaikan dengan pemakaian dan jam kerja yang benar-benar terjadi.
+                        </p>
+
+                        @if ($errors->any())
+                            <div class="alert alert-danger">{{ $errors->first() }}</div>
+                        @endif
 
                         <form action="{{ route('production_orders.custom-actuals.update', $productionOrder) }}" method="POST">
                             @csrf
                             @method('PUT')
 
-                            <h6 class="mt-3">Pemakaian Bahan Aktual</h6>
+                            <div class="row g-3">
+                                @foreach ($mainProductionIngredients as $ingredient)
+                                    @php
+                                        $planned = $plannedMaterials->get($ingredient->ingredient_master_id);
+                                        $initial = $customActualsSaved
+                                            ? $ingredient->pivot->quantity_used
+                                            : ($planned?->quantity ?? $ingredient->pivot->quantity_used);
+                                    @endphp
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="material-{{ $ingredient->id }}">
+                                            {{ $ingredient->name }} ({{ $ingredient->unit }})
+                                        </label>
+                                        <input type="number" id="material-{{ $ingredient->id }}"
+                                            name="materials[{{ $ingredient->id }}]" class="form-control" min="0" step="any"
+                                            value="{{ old('materials.' . $ingredient->id, $formatActual($initial)) }}" required>
+                                        @if ($planned)
+                                            <div class="form-text">Estimasi: {{ $formatActual($planned->quantity) }}
+                                                {{ $planned->unit }}</div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
 
-                            @foreach ($productionOrder->ingredients as $ingredient)
-                                <div class="mb-3">
-                                    <label class="form-label">
-                                        {{ $ingredient->name }}
-                                        ({{ $ingredient->unit }})
-                                    </label>
+                            <div class="d-flex justify-content-between align-items-center mt-3 mb-2">
+                                <span class="fw-semibold">Bahan Tambahan</span>
+                                <button type="button" class="btn btn-outline-dark btn-sm" id="addCustomMaterial">+ Tambah
+                                    Bahan</button>
+                            </div>
 
-                                    <input type="number" name="materials[{{ $ingredient->id }}]" class="form-control" min="0"
-                                        step="0.01"
-                                        value="{{ old('materials.' . $ingredient->id, $ingredient->pivot->quantity_used) }}"
-                                        required>
+                            {{-- Bahan tambahan yang SUDAH disimpan tetap tampil di sini dan tetap dikirim lewat materials[id].
+                            --}}
+                            @if ($extraProductionIngredients->isNotEmpty())
+                                <div class="row g-3 mb-3">
+                                    @foreach ($extraProductionIngredients as $ingredient)
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="extra-saved-material-{{ $ingredient->id }}">
+                                                {{ $ingredient->name }} ({{ $ingredient->unit }})
+                                            </label>
+                                            <input type="number" id="extra-saved-material-{{ $ingredient->id }}"
+                                                name="materials[{{ $ingredient->id }}]" class="form-control" min="0" step="any"
+                                                value="{{ old('materials.' . $ingredient->id, $formatActual($ingredient->pivot->quantity_used)) }}"
+                                                required>
+                                            <div class="form-text">Bahan tambahan tersimpan</div>
+                                        </div>
+                                    @endforeach
                                 </div>
-                            @endforeach
+                            @endif
+                            {{-- Baris yang ditambahkan saat ini, sebelum disimpan. --}}
+                            <div id="customExtraMaterials"></div>
 
-                            <h6 class="mt-4">Jam Kerja Aktual</h6>
+                            <h6 class="mt-4 mb-3">Jam Kerja Aktual</h6>
+                            <div class="row g-3">
+                                @foreach ($productionOrder->users as $user)
+                                    @php
+                                        $planned = $plannedLabors->get($user->id);
+                                        $initial = $customActualsSaved
+                                            ? $user->pivot->labor_hours
+                                            : ($planned?->estimated_hours ?? $user->pivot->labor_hours);
+                                    @endphp
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="labor-{{ $user->id }}">
+                                            {{ $user->name }} - {{ $user->pivot->job_description }}
+                                        </label>
+                                        <input type="number" id="labor-{{ $user->id }}" name="labors[{{ $user->id }}]"
+                                            class="form-control" min="0" step="0.01"
+                                            value="{{ $formatActual(old('labors.' . $user->id, $initial)) }}" required>
+                                        @if ($planned)
+                                            <div class="form-text">Estimasi: {{ $formatActual($planned->estimated_hours) }} jam</div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
 
-                            @foreach ($productionOrder->users as $user)
-                                <div class="mb-3">
-                                    <label class="form-label">
-                                        {{ $user->name }} -
-                                        {{ $user->pivot->job_description }}
-                                    </label>
+                            <div class="d-flex justify-content-between align-items-center mt-3 mb-2">
+                                <span class="fw-semibold">Karyawan Tambahan</span>
+                                <button type="button" class="btn btn-outline-dark btn-sm" id="addCustomLabor">+ Tambah
+                                    Karyawan</button>
+                            </div>
+                            <div id="customExtraLabors"></div>
 
-                                    <input type="number" name="labors[{{ $user->id }}]" class="form-control" min="0" step="0.01"
-                                        value="{{ old('labors.' . $user->id, $user->pivot->labor_hours) }}" required>
-                                </div>
-                            @endforeach
-
-                            <button type="submit" class="btn btn-primary">
-                                Simpan Biaya Aktual
-                            </button>
+                            <button type="submit" class="btn btn-primary mt-3">Simpan Biaya Aktual</button>
                         </form>
                     </div>
                 </div>
+
+                <script>
+                    document.addEventListener('DOMContentLoaded', function () {
+                        const ingredientList = @json($customMaterialOptions);
+                        const employeeList = @json($customEmployeeOptions);
+                        const jobList = @json($customJobOptions);
+                        const materialContainer = document.getElementById('customExtraMaterials');
+                        const laborContainer = document.getElementById('customExtraLabors');
+                        let materialIndex = 0;
+                        let laborIndex = 0;
+
+                        function selectOptions(items, placeholder) {
+                            return '<option value="">' + placeholder + '</option>' + items.map(item =>
+                                '<option value="' + item.id + '">' + item.name + '</option>'
+                            ).join('');
+                        }
+                        function jobOptions() {
+                            const el = document.createElement('select');
+                            el.className = 'form-select';
+                            el.add(new Option('Pilih pekerjaan', ''));
+                            jobList.forEach(name => el.add(new Option(name, name)));
+                            return el;
+                        }
+
+                        document.getElementById('addCustomMaterial').addEventListener('click', function () {
+                            const index = materialIndex++;
+                            const row = document.createElement('div');
+                            row.className = 'row g-2 align-items-end mb-2 custom-extra-row';
+                            row.innerHTML = `<div class="col-md-6"><label class="form-label">Bahan</label><select class="form-select extra-material-select" name="extra_materials[${index}][ingredient_id]" required></select></div>
+                                                <div class="col-md-4"><label class="form-label">Jumlah Aktual</label><input type="number" class="form-control" name="extra_materials[${index}][quantity]" min="0.01" step="0.01" required></div>
+                                                <div class="col-md-2"><button type="button" class="btn btn-outline-danger w-100 remove-extra">Hapus</button></div>`;
+                            materialContainer.appendChild(row);
+                            const sel = row.querySelector('select');
+                            sel.add(new Option('Pilih bahan', ''));
+                            ingredientList.forEach(item => sel.add(new Option(item.name + ' (' + item.unit + ')', item.id)));
+                        });
+
+                        document.getElementById('addCustomLabor').addEventListener('click', function () {
+                            const index = laborIndex++;
+                            const row = document.createElement('div');
+                            row.className = 'row g-2 align-items-end mb-2 custom-extra-row';
+                            row.innerHTML = `<div class="col-md-4"><label class="form-label">Karyawan</label><select class="form-select extra-labor-select" name="extra_labors[${index}][user_id]" required></select></div>
+                                                <div class="col-md-4"><label class="form-label">Pekerjaan</label><select class="form-select extra-job-select" name="extra_labors[${index}][job_description]" required></select></div>
+                                                <div class="col-md-2"><label class="form-label">Jam Aktual</label><input type="number" class="form-control" name="extra_labors[${index}][labor_hours]" min="0.01" step="0.01" required></div>
+                                                <div class="col-md-2"><button type="button" class="btn btn-outline-danger w-100 remove-extra">Hapus</button></div>`;
+                            laborContainer.appendChild(row);
+                            const sel = row.querySelector('.extra-labor-select');
+                            sel.add(new Option('Pilih karyawan', ''));
+                            employeeList.forEach(item => sel.add(new Option(item.name, item.id)));
+                            const jobSelect = row.querySelector('.extra-job-select');
+                            jobSelect.add(new Option('Pilih pekerjaan', ''));
+                            jobList.forEach(name => jobSelect.add(new Option(name, name)));
+                        });
+
+                        [materialContainer, laborContainer].forEach(container => {
+                            container.addEventListener('click', event => {
+                                const button = event.target.closest('.remove-extra');
+                                if (button) button.closest('.custom-extra-row').remove();
+                            });
+                        });
+                    });
+                </script>
             @endif
 
             {{-- Perhitungan Biaya --}}
@@ -382,7 +488,7 @@
                             <div class="fs-4 fw-semibold">
                                 Rp {{ number_format($hppPerUnit, 0, ',', '.') }}
                             </div>
-                            <div class="mt-3 text-muted small">HPP historis untuk pesanan produksi ini.</div>
+                            <div class="mt-3 text-muted small">HPP untuk pesanan produksi ini.</div>
                         </div>
 
                     </div>
@@ -424,16 +530,14 @@
                         <button type="button" class="btn-close" id="closePriceSimulator" aria-label="Tutup"></button>
                     </div>
                     <div class="p-3">
-                        <p class="text-muted small">Simulasi berdasarkan HPP produksi ini. Persentase keuntungan dihitung
-                            sebagai markup dari HPP, bukan margin penjualan.</p>
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
                                 <label class="form-label">HPP per unit</label>
                                 <input type="text" class="form-control" readonly
-                                    value="Rp {{ number_format($hppPerUnit, 2, ',', '.') }}">
+                                    value="Rp {{ number_format((float) $hppPerUnit, 0, ',', '.') }}">
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Harga jual sekarang (semua cabang)</label>
+                                <label class="form-label">Harga jual sekarang</label>
                                 <input type="text" class="form-control" readonly
                                     value="{{ $hasPrice ? 'Rp ' . number_format($currentPrice, 0, ',', '.') : 'Harga belum ditetapkan' }}">
                             </div>
@@ -462,7 +566,6 @@
                                     @disabled(auth()->user()->role?->name !== 'Owner')>Gunakan Rekomendasi</button>
                             </div>
                         </div>
-                        <div class="form-text">Owner boleh menentukan harga bulat sendiri.</div>
                         <p class="mt-3 mb-1" id="chosenProfitInfo"></p>
                         <p class="mb-1" id="priceDifference"></p>
                         <p class="text-danger small" id="priceWarning" role="alert"></p>
@@ -470,8 +573,7 @@
                             <div class="alert alert-danger">{{ $errors->first('final_price') }}</div>
                         @endif
                         <div class="alert alert-warning small mb-0">
-                            Harga jual berlaku untuk <strong>seluruh cabang</strong>. Mengubah harga memengaruhi
-                            POS berikutnya, bukan transaksi sebelumnya.
+                            Harga jual berlaku untuk <strong>seluruh cabang</strong>.
                         </div>
                     </div>
                     <div class="p-3 border-top d-flex justify-content-end gap-2">
@@ -558,6 +660,9 @@
                         const rupiah = value => 'Rp ' + new Intl.NumberFormat('id-ID', {
                             maximumFractionDigits: 0
                         }).format(value);
+                        const percentFormat = value => new Intl.NumberFormat('id-ID', {
+                            maximumFractionDigits: 2
+                        }).format(value);
                         let recommended = 0;
 
                         document.getElementById('openPriceSimulator').addEventListener('click', function () {
@@ -577,7 +682,7 @@
                             recommendedInput.value = validProfit ? rupiah(recommended) : 'Target tidak valid';
                             const nowInfo = document.getElementById('currentProfitInfo');
                             nowInfo.textContent = current > 0
-                                ? 'Keuntungan pada harga sekarang: ' + ((current - hpp) / hpp * 100).toFixed(2) + '% dari HPP.'
+                                ? 'Keuntungan pada harga sekarang: ' + percentFormat((current - hpp) / hpp * 100) + '% dari HPP.'
                                 : 'Harga jual belum ditetapkan, sehingga keuntungan pada harga sekarang belum dapat dihitung.';
 
                             const chosen = Number(finalInput.value);
@@ -597,8 +702,8 @@
                             const difference = chosen - hpp;
                             const actualProfit = difference / hpp * 100;
                             document.getElementById('chosenProfitInfo').textContent =
-                                'Keuntungan pilihan Owner: ' + rupiah(difference) + ' per unit (' +
-                                actualProfit.toFixed(2) + '% dari HPP).';
+                                'Keuntungan pilihan: ' + rupiah(difference) + ' per unit (' +
+                                percentFormat(actualProfit) + '% dari HPP).';
                             document.getElementById('priceDifference').textContent = current > 0
                                 ? 'Selisih dari harga sekarang: ' + rupiah(chosen - current) + '.'
                                 : 'Harga pertama untuk varian ini belum ditetapkan.';
@@ -641,6 +746,13 @@
                     Kembali
                 </a>
 
+                @if ($productionOrder->order_type === 'custom')
+                    <a href="{{ route('production_orders.job-cost-sheet', $productionOrder) }}" class="btn btn-outline-dark">
+                        <i class="bi bi-file-earmark-text"></i>
+                        Job Cost Sheet
+                    </a>
+                @endif
+
                 @if ($productionOrder->status === 'planned')
                     <form action="{{ route('production_orders.update-status', $productionOrder) }}" method="POST"
                         class="d-inline">
@@ -657,10 +769,7 @@
                     </form>
 
 
-                @elseif (
-                        $productionOrder->status === 'in_progress' &&
-                        $productionOrder->order_type === 'regular'
-                    )
+                @elseif ($productionOrder->status === 'in_progress')
 
                     <form action="{{ route('production_orders.update-status', $productionOrder) }}" method="POST"
                         class="d-inline"

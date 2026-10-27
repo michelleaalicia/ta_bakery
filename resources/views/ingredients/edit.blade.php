@@ -21,7 +21,10 @@
                 <div class="mb-3">
                     <label class="form-label">Cabang</label>
 
-                    <select name="branch_id" class="form-select" {{ $ingredient->branch_id !== null && $branches->isNotEmpty() ? 'required' : '' }}>
+                    @if (auth()->user()->role?->name !== 'Owner')
+                        <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
+                    @endif
+                    <select name="branch_id" id="branch_id" class="form-select" {{ $ingredient- {{ auth()->user()->role?->name !== 'Owner' ? 'disabled' : '' }}>branch_id !== null && $branches->isNotEmpty() ? 'required' : '' }}>
 
                         @if ($ingredient->branch_id === null)
                             <option value="" selected>Tanpa Cabang</option>
@@ -29,7 +32,7 @@
 
                         @foreach ($branches as $branch)
 
-                            <option value="{{ $branch->id }}" {{ $ingredient->branch_id == $branch->id ? 'selected' : '' }}>
+                            <option value="{{ $branch->id }}" {{ (auth()->user()->role?->name !== 'Owner' ? auth()->user()->branch_id : $ingredient->branch_id) == $branch->id ? 'selected' : '' }}>
 
                                 {{ $branch->name }}
 

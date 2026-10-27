@@ -147,7 +147,8 @@
                                     {{ $recipe->ingredients->count() }} bahan
                                 </td>
 
-                                <td>
+
+                                <td class="text-nowrap">
                                     <a href="{{ route('recipes.show', $recipe->id) }}" class="btn btn-info btn-sm">
                                         Detail
                                     </a>
@@ -155,6 +156,17 @@
                                     <a href="{{ route('recipes.edit', $recipe->id) }}" class="btn btn-warning btn-sm">
                                         Edit
                                     </a>
+
+                                    <form action="{{ route('recipes.destroy', $recipe->id) }}" method="POST" class="d-inline"
+                                        onsubmit="return confirm('Yakin ingin menghapus resep ini? Resep yang sudah digunakan dalam produksi tidak dapat dihapus.')">
+
+                                        @csrf
+                                        @method('DELETE')
+
+                                        <button type="submit" class="btn btn-danger btn-sm">
+                                            Hapus
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
                         @endforeach

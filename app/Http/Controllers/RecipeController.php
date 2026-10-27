@@ -182,13 +182,11 @@ class RecipeController extends Controller
             'ingredients.*.ingredient_id' => ['required', 'integer', 'exists:ingredients,id'],
             'ingredients.*.quantity' => ['required', 'numeric', 'gt:0'],
         ];
-        if (!$editing) {
-            $rules['product_variant_id'] = [
-                'required',
-                'integer',
-                'exists:product_variants,id',
-            ];
-        }
+        $rules['product_variant_id'] = [
+            'required',
+            'integer',
+            'exists:product_variants,id',
+        ];
         $data = $request->validate($rules);
         $ids = collect($data['ingredients'])->pluck('ingredient_id');
         $chosen = Ingredient::where('tenant_id', auth()->user()->tenant_id)

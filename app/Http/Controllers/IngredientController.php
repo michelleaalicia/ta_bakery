@@ -15,6 +15,7 @@ class IngredientController extends Controller
     {
         $ingredients = Ingredient::with('branch')
             ->where('tenant_id', auth()->user()->tenant_id)
+            ->when(auth()->user()->role?->name !== 'Owner', fn ($q) => $q->where('branch_id', auth()->user()->branch_id))
             ->get();
 
         return view('ingredients.index', compact('ingredients'));
@@ -25,7 +26,7 @@ class IngredientController extends Controller
         $branches = Branch::where(
             'tenant_id',
             auth()->user()->tenant_id
-        )->get();
+        )->when(auth()->user()->role?->name !== 'Owner', fn ($q) => $q->whereKey(auth()->user()->branch_id))->get();
 
         return view('ingredients.create', compact('branches'));
     }
@@ -33,6 +34,7 @@ class IngredientController extends Controller
     public function store(Request $request)
     {
         $tenantId = auth()->user()->tenant_id;
+        $this->forceEmployeeBranch($request);
 
         $hasBranches = Branch::where('tenant_id', $tenantId)->exists();
 
@@ -87,7 +89,7 @@ class IngredientController extends Controller
         $branches = Branch::where(
             'tenant_id',
             auth()->user()->tenant_id
-        )->get();
+        )->when(auth()->user()->role?->name !== 'Owner', fn ($q) => $q->whereKey(auth()->user()->branch_id))->get();
 
         return view('ingredients.edit', compact('ingredient', 'branches'));
     }
@@ -97,6 +99,7 @@ class IngredientController extends Controller
         $this->checkTenant($ingredient);
 
         $tenantId = auth()->user()->tenant_id;
+        $this->forceEmployeeBranch($request);
 
         $hasBranches = Branch::where('tenant_id', $tenantId)->exists();
 
@@ -187,6 +190,14 @@ class IngredientController extends Controller
             ->with('success', 'Bahan baku berhasil dihapus.');
     }
 
+    private function forceEmployeeBranch(Request $request): void
+    {
+        if (auth()->user()->role?->name !== 'Owner') {
+            abort_if(!auth()->user()->branch_id, 403, 'Akun karyawan belum memiliki cabang.');
+            $request->merge(['branch_id' => auth()->user()->branch_id]);
+        }
+    }
+
     private function ensureNoDuplicate($tenantId, $branchId, $name, $unit, $exceptId = null): void
     {
         $query = Ingredient::where('tenant_id', $tenantId)
@@ -202,7 +213,8 @@ class IngredientController extends Controller
 
     private function checkTenant(Ingredient $ingredient)
     {
-        if ($ingredient->tenant_id != auth()->user()->tenant_id) {
+        if ($ingredient->tenant_id != auth()->user()->tenant_id ||
+            (auth()->user()->role?->name !== 'Owner' && (int) $ingredient->branch_id !== (int) auth()->user()->branch_id)) {
             abort(403);
         }
     }

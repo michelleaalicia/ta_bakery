@@ -19,11 +19,8 @@
             {{-- Logo & Header --}}
             <div class="flex flex-col items-center mb-6">
 
-                <div class="w-12 h-12 border border-gray-300 bg-gray-50 flex items-center justify-center mb-3">
-                    <span class="text-xs text-gray-400">
-                        Logo
-                    </span>
-                </div>
+                <img src="{{ asset('images/bakery-logo.png') }}" alt="Logo Sistem Bakery"
+                    class="w-16 h-16 object-contain mb-3">
 
                 <h1 class="text-xl font-bold text-gray-900">
                     Sistem Bakery
@@ -75,6 +72,8 @@
 
 
                     {{-- Password --}}
+
+                    {{-- Password --}}
                     <div>
                         <label for="password" class="block text-sm text-gray-700 mb-1">
                             Password
@@ -82,27 +81,31 @@
 
                         <div class="relative">
 
-                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                            {{-- Ikon gembok --}}
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <rect x="5" y="10" width="14" height="10" rx="2" />
                                     <path d="M8 10V7a4 4 0 018 0v3" />
                                 </svg>
                             </span>
 
+                            {{-- Input password --}}
                             <input id="password" name="password" type="password" placeholder="Password Anda" required
                                 autocomplete="current-password"
                                 class="w-full h-[42px] pl-9 pr-10 border border-gray-300 rounded text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-500">
 
-                            <button type="button" onclick="togglePassword()"
-                                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                                <svg id="eyeIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {{-- Tombol mata --}}
+                            <button type="button" id="togglePasswordBtn" onclick="togglePassword()"
+                                aria-label="Tampilkan password" aria-pressed="false"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 cursor-pointer">
+                                <svg id="eyeIcon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5"
+                                    stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
                                     <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z" />
                                     <circle cx="12" cy="12" r="3" />
                                 </svg>
                             </button>
 
                         </div>
-
                     </div>
 
 
@@ -132,15 +135,36 @@
 
 
     {{-- Password Toggle --}}
+
     <script>
         function togglePassword() {
             const password = document.getElementById('password');
+            const eyeIcon = document.getElementById('eyeIcon');
+            const button = document.getElementById('togglePasswordBtn');
 
-            if (password.type === 'password') {
-                password.type = 'text';
+            const isHidden = password.type === 'password';
+
+            password.type = isHidden ? 'text' : 'password';
+
+            if (isHidden) {
+                eyeIcon.innerHTML = `
+                <path d="M3 3l18 18" />
+                <path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.5 0 10 7 10 7a16 16 0 0 1-3.2 3.7" />
+                <path d="M6.6 6.6C3.6 8.4 2 12 2 12s3.5 7 10 7a10.8 10.8 0 0 0 5.4-1.4" />
+                <path d="M10 10a3 3 0 0 0 4 4" />
+            `;
+
+                button.setAttribute('aria-label', 'Sembunyikan password');
             } else {
-                password.type = 'password';
+                eyeIcon.innerHTML = `
+                <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z" />
+                <circle cx="12" cy="12" r="3" />
+            `;
+
+                button.setAttribute('aria-label', 'Tampilkan password');
             }
+
+            button.setAttribute('aria-pressed', String(isHidden));
         }
     </script>
 

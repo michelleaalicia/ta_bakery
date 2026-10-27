@@ -31,11 +31,78 @@
 
             <hr>
 
+
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                 <div>
                     <h5 class="mb-1">Varian Produk</h5>
-                    <div class="text-muted small">Harga jual dan stok produk jadi ditampilkan per varian.</div>
                 </div>
+
+                <button type="button" class="btn btn-dark btn-sm" onclick="toggleFormVarian()">
+                    <i class="bi bi-plus-lg"></i>
+                    Tambah Varian
+                </button>
+            </div>
+
+            <div id="formTambahVarian" style="{{ $errors->any() ? '' : 'display: none;' }}">
+
+                <form action="{{ route('product-variants.store', $product) }}" method="POST" enctype="multipart/form-data"
+                    class="border rounded p-3 mb-3 bg-light">
+
+                    @csrf
+
+                    <h6 class="fw-semibold mb-3">Tambah Varian Baru</h6>
+
+                    @if ($errors->any())
+                        <div class="alert alert-danger">
+                            {{ $errors->first() }}
+                        </div>
+                    @endif
+
+                    <div class="row g-3">
+
+                        <div class="col-md-5">
+                            <label for="variantName" class="form-label">
+                                Nama Varian
+                            </label>
+                            <input type="text" id="variantName" name="name" value="{{ old('name') }}" class="form-control"
+                                placeholder="Contoh: Keju" maxlength="255" required>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label for="variantStatus" class="form-label">
+                                Status
+                            </label>
+                            <select id="variantStatus" name="status" class="form-select" required>
+                                <option value="active" @selected(old('status', 'active') === 'active')>
+                                    Aktif
+                                </option>
+                                <option value="inactive" @selected(old('status') === 'inactive')>
+                                    Nonaktif
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="variantImage" class="form-label">
+                                Gambar (Opsional)
+                            </label>
+                            <input type="file" id="variantImage" name="image" class="form-control"
+                                accept=".jpg,.jpeg,.png,.webp">
+                        </div>
+
+                    </div>
+
+                    <div class="d-flex gap-2 mt-3">
+                        <button type="submit" class="btn btn-dark btn-sm">
+                            Simpan Varian
+                        </button>
+
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="toggleFormVarian()">
+                            Batal
+                        </button>
+                    </div>
+
+                </form>
             </div>
 
             <div class="table-responsive">
@@ -134,3 +201,16 @@
     </div>
 
 @endsection
+
+@push('scripts')
+    <script>
+        function toggleFormVarian() {
+            const form = document.getElementById('formTambahVarian');
+
+            if (!form) return;
+
+            form.style.display =
+                form.style.display === 'none' ? 'block' : 'none';
+        }
+    </script>
+@endpush

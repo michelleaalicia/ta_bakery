@@ -10,12 +10,14 @@ class ProductVariantStock extends Model
         'product_variant_id',
         'branch_id',
         'stock',
+        'average_unit_cost',
     ];
 
     protected function casts(): array
     {
         return [
             'stock' => 'decimal:2',
+            'average_unit_cost' => 'decimal:2',
         ];
     }
 

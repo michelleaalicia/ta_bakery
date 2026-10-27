@@ -20,7 +20,9 @@ class UsersImport implements ToModel, WithHeadingRow
         $email = trim($row['email'] ?? '');
         $roleName = trim($row['role'] ?? '');
         $branchName = trim($row['cabang_opsional'] ?? '');
-        $wage = $row['tarif_upah_jam'] ?? null;
+        // Header 'Tarif Upah/Jam' dinormalisasi Laravel Excel menjadi 'tarif_upahjam'.
+        // Terima juga variasi header lama supaya template tetap kompatibel.
+        $wage = $row['tarif_upahjam'] ?? $row['tarif_upah_jam'] ?? null;
 
         if ($name === '' || $email === '' || $roleName === '') {
             throw new \Exception('Nama, Email, dan Role wajib diisi.');

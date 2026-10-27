@@ -6,14 +6,13 @@
 @section('content')
 
     <div class="card">
-
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <a href="{{ route('roles.create') }}" class="btn btn-dark btn-sm">
-                Tambah Role
-            </a>
-        </div>
-
         <div class="card-body">
+
+            <div class="mb-3">
+                <a href="{{ route('roles.create') }}" class="btn btn-dark btn-sm">
+                    Tambah Role
+                </a>
+            </div>
 
             <table class="table table-bordered">
                 <thead>
@@ -62,6 +61,12 @@
                     @endforelse
                 </tbody>
             </table>
+
+            <div class="mt-3">
+                <a href="{{ route('users.index') }}" class="btn btn-secondary btn-sm">
+                    Kembali
+                </a>
+            </div>
 
         </div>
     </div>

@@ -17,11 +17,14 @@
                     <div class="mb-3">
                         <label class="form-label">Cabang</label>
 
-                        <select name="branch_id" id="branch_id" class="form-select" required>
+                        @if (auth()->user()->role?->name !== 'Owner')
+                            <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id }}">
+                        @endif
+                        <select name="branch_id" id="branch_id" class="form-select" required {{ auth()->user()->role?->name !== 'Owner' ? 'disabled' : '' }}>
                             <option value="">Pilih cabang</option>
 
                             @foreach ($branches as $branch)
-                                <option value="{{ $branch->id }}" {{ old('branch_id') == $branch->id ? 'selected' : '' }}>
+                                <option value="{{ $branch->id }}" {{ (auth()->user()->role?->name !== 'Owner' ? auth()->user()->branch_id : old('branch_id')) == $branch->id ? 'selected' : '' }}>
                                     {{ $branch->name }}
                                 </option>
                             @endforeach
@@ -50,6 +53,45 @@
                     </select>
                 </div>
 
+
+                {{-- Informasi Resep --}}
+                <div id="recipe-info" class="border rounded p-3 mb-3 bg-light" style="display: none;">
+
+                    <div class="fw-semibold mb-3">
+                        <i class="bi bi-journal-text me-1"></i>
+                        Informasi Resep
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="text-muted small mb-1">
+                                Hasil 1 Resep
+                            </div>
+                            <div class="fw-semibold" id="recipe-yield">
+                                -
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="text-muted small mb-1">
+                                Estimasi Waktu 1 Resep
+                            </div>
+                            <div class="fw-semibold" id="recipe-time">
+                                -
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="text-muted small mb-1">
+                                Target Produksi
+                            </div>
+                            <div class="fw-semibold" id="recipe-target">
+                                -
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {{-- Batch Produksi --}}
                 <div class="mb-3">
                     <label class="form-label">Batch Produksi</label>
@@ -71,10 +113,6 @@
                     <input type="date" id="production_date" name="production_date" class="form-control"
                         value="{{ old('production_date', now()->format('Y-m-d')) }}" min="{{ now()->format('Y-m-d') }}"
                         required>
-
-                    <div class="form-text">
-                        Pilih tanggal hari ini atau tanggal mendatang.
-                    </div>
                 </div>
 
                 {{-- BOP --}}
@@ -86,10 +124,6 @@
 
                         <input type="text" name="bop_cost" id="bop_cost" value="{{ old('bop_cost') }}" class="form-control"
                             placeholder="Contoh: 50000" required>
-                    </div>
-
-                    <div class="form-text">
-                        Masukkan biaya overhead untuk produksi ini.
                     </div>
                 </div>
 
@@ -219,7 +253,88 @@
                     });
             }
 
-            productSelect.addEventListener('change', updateVariants);
+
+            const batchInput = document.querySelector('[name="batch_count"]');
+
+            const recipeInfo = document.getElementById('recipe-info');
+            const recipeYield = document.getElementById('recipe-yield');
+            const recipeTime = document.getElementById('recipe-time');
+            const recipeTarget = document.getElementById('recipe-target');
+
+            const numberFormat = new Intl.NumberFormat('id-ID', {
+                maximumFractionDigits: 2
+            });
+
+            function formatNumber(value) {
+                return numberFormat.format(Number(value) || 0);
+            }
+
+            function formatDuration(minutes) {
+                const totalMinutes = Number(minutes);
+
+                if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) {
+                    return '-';
+                }
+
+                if (totalMinutes < 60) {
+                    return formatNumber(totalMinutes) + ' menit';
+                }
+
+                const hours = Math.floor(totalMinutes / 60);
+                const remainingMinutes = totalMinutes % 60;
+
+                if (remainingMinutes === 0) {
+                    return hours + ' jam';
+                }
+
+                return hours + ' jam ' +
+                    formatNumber(remainingMinutes) + ' menit';
+            }
+
+            function updateRecipeInfo() {
+                const selectedVariant = variants.find(
+                    variant => String(variant.id) === variantSelect.value
+                );
+
+                if (!selectedVariant) {
+                    recipeInfo.style.display = 'none';
+                    recipeYield.textContent = '-';
+                    recipeTime.textContent = '-';
+                    recipeTarget.textContent = '-';
+                    return;
+                }
+
+                const quantity = Number(selectedVariant.recipe_quantity);
+                const unit = selectedVariant.recipe_unit || 'pcs';
+                const batch = Number(batchInput.value);
+
+                recipeInfo.style.display = 'block';
+
+                recipeYield.textContent =
+                    formatNumber(quantity) + ' ' + unit;
+
+                recipeTime.textContent =
+                    formatDuration(selectedVariant.production_time);
+
+                recipeTarget.textContent =
+                    Number.isInteger(batch) && batch > 0
+                        ? formatNumber(quantity * batch) + ' ' + unit
+                        : '-';
+            }
+
+            productSelect.addEventListener('change', function () {
+                updateVariants();
+                updateRecipeInfo();
+            });
+
+            variantSelect.addEventListener('change', updateRecipeInfo);
+
+            batchInput.addEventListener('input', updateRecipeInfo);
+
+            // Siapkan pilihan ketika halaman pertama dibuka.
+            updateVariants();
+            updateRecipeInfo();
+
             // Format BOP
             const bopInput = document.getElementById('bop_cost');
 
@@ -309,74 +424,74 @@
                 row.className = 'employee-row border rounded p-3 mb-2';
 
                 row.innerHTML = `
-                                                                        <div class="row">
+                                                                                                                    <div class="row">
 
-                                                                            <div class="col-md-4">
+                                                                                                                        <div class="col-md-4">
 
-                                                                                <label class="form-label">Karyawan</label>
+                                                                                                                            <label class="form-label">Karyawan</label>
 
-                                                                                <select
-                                                                                    name="employees[${employeeIndex}][user_id]"
-                                                                                    class="form-select employee-select"
-                                                                                    required>
+                                                                                                                            <select
+                                                                                                                                name="employees[${employeeIndex}][user_id]"
+                                                                                                                                class="form-select employee-select"
+                                                                                                                                required>
 
-                                                                                    <option value="">Pilih karyawan</option>
+                                                                                                                                <option value="">Pilih karyawan</option>
 
-                                                                                    @foreach ($users as $user)
-                                                                                        <option
-                                                                                            value="{{ $user->id }}"
-                                                                                            data-branch="{{ $user->branch_id ?? '' }}">
-                                                                                            {{ $user->name }}
-                                                                                        </option>
-                                                                                    @endforeach
+                                                                                                                                @foreach ($users as $user)
+                                                                                                                                    <option
+                                                                                                                                        value="{{ $user->id }}"
+                                                                                                                                        data-branch="{{ $user->branch_id ?? '' }}">
+                                                                                                                                        {{ $user->name }}
+                                                                                                                                    </option>
+                                                                                                                                @endforeach
 
-                                                                                </select>
+                                                                                                                            </select>
 
-                                                                            </div>
-
-
-                                                                            <div class="col-md-4">
-
-                                                                                <label class="form-label">Pekerjaan</label>
-
-                                                                                <select
-                                                                                    name="employees[${employeeIndex}][job_description]"
-                                                                                    class="form-select job-description-select"
-                                                                                    required>
-                                                                                    <option value="">Pilih pekerjaan</option>
-                                                                                </select>
-
-                                                                            </div>
+                                                                                                                        </div>
 
 
-                                                                            <div class="col-md-3">
+                                                                                                                        <div class="col-md-4">
 
-                                                                                <label class="form-label">Jam Kerja</label>
+                                                                                                                            <label class="form-label">Pekerjaan</label>
 
-                                                                                <input
-                                                                                    type="text"
-                                                                                    name="employees[${employeeIndex}][labor_hours]"
-                                                                                    class="form-control"
-                                                                                    placeholder="Contoh: 5"
-                                                                                    required>
+                                                                                                                            <select
+                                                                                                                                name="employees[${employeeIndex}][job_description]"
+                                                                                                                                class="form-select job-description-select"
+                                                                                                                                required>
+                                                                                                                                <option value="">Pilih pekerjaan</option>
+                                                                                                                            </select>
 
-                                                                            </div>
+                                                                                                                        </div>
 
 
-                                                                            <div class="col-md-1 d-flex align-items-end">
+                                                                                                                        <div class="col-md-3">
 
-                                                                                <button
-                                                                                    type="button"
-                                                                                    class="btn btn-danger btn-sm remove-employee">
+                                                                                                                            <label class="form-label">Jam Kerja</label>
 
-                                                                                    <i class="bi bi-trash"></i>
+                                                                                                                            <input
+                                                                                                                                type="text"
+                                                                                                                                name="employees[${employeeIndex}][labor_hours]"
+                                                                                                                                class="form-control"
+                                                                                                                                placeholder="Contoh: 5"
+                                                                                                                                required>
 
-                                                                                </button>
+                                                                                                                        </div>
 
-                                                                            </div>
 
-                                                                        </div>
-                                                                    `;
+                                                                                                                        <div class="col-md-1 d-flex align-items-end">
+
+                                                                                                                            <button
+                                                                                                                                type="button"
+                                                                                                                                class="btn btn-danger btn-sm remove-employee">
+
+                                                                                                                                <i class="bi bi-trash"></i>
+
+                                                                                                                            </button>
+
+                                                                                                                        </div>
+
+                                                                                                                    </div>
+                                                                                                                `;
 
                 employeeContainer.appendChild(row);
 

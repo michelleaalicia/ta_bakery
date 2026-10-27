@@ -237,7 +237,7 @@ class PosController extends Controller
                 // Pastikan harga jual sudah ditetapkan.
                 if ((float) $variant->price <= 0) {
                     throw ValidationException::withMessages([
-                        'items' => 'Harga jual varian ' . $variant->name . ' belum ditetapkan.',
+                        'items' => 'Harga jual ' . ($variant->product?->name ?? 'Produk') . ' - ' . $variant->name . ' belum ditetapkan.',
                     ]);
                 }
 
@@ -260,7 +260,7 @@ class PosController extends Controller
 
                 if ($availableStock < $quantity) {
                     throw ValidationException::withMessages([
-                        'items' => 'Stok ' . $variant->name . ' tidak mencukupi.',
+                        'items' => 'Stok ' . ($variant->product?->name ?? 'Produk') . ' - ' . $variant->name . ' tidak mencukupi.',
                     ]);
                 }
 
@@ -343,10 +343,18 @@ class PosController extends Controller
     }
 
 
+
     public function confirmPayment(Sale $sale)
     {
-        if ($sale->tenant_id != $this->tenantId()) {
+        if ((int) $sale->tenant_id !== (int) $this->tenantId()) {
             abort(404);
+        }
+
+        if (
+            !$this->isOwner() &&
+            (int) $sale->branch_id !== (int) auth()->user()->branch_id
+        ) {
+            abort(403);
         }
 
         try {
@@ -355,8 +363,15 @@ class PosController extends Controller
                     ->lockForUpdate()
                     ->firstOrFail();
 
-                if ($lockedSale->tenant_id != $this->tenantId()) {
+                if ((int) $lockedSale->tenant_id !== (int) $this->tenantId()) {
                     abort(404);
+                }
+
+                if (
+                    !$this->isOwner() &&
+                    (int) $lockedSale->branch_id !== (int) auth()->user()->branch_id
+                ) {
+                    abort(403);
                 }
 
                 if ($lockedSale->payment_method !== 'qris') {
@@ -379,6 +394,8 @@ class PosController extends Controller
             });
         } catch (ValidationException $e) {
             throw $e;
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e) {
+            throw $e;
         } catch (\Throwable $e) {
             report($e);
 
@@ -400,6 +417,12 @@ class PosController extends Controller
         $details = SaleHasProductVariant::where('sale_id', $sale->id)
             ->orderBy('product_variant_id')
             ->get();
+
+        if ($details->isEmpty()) {
+            throw ValidationException::withMessages([
+                'stock' => 'Detail transaksi tidak ditemukan.',
+            ]);
+        }
 
         foreach ($details as $detail) {
             $variant = ProductVariant::whereKey($detail->product_variant_id)
@@ -434,12 +457,32 @@ class PosController extends Controller
             $availableStock = (float) $stocks->sum('stock');
             $requiredQuantity = (float) $detail->quantity;
 
-            if ($availableStock < $requiredQuantity) {
+            if ($requiredQuantity <= 0 || $availableStock < $requiredQuantity) {
                 throw ValidationException::withMessages([
-                    'stock' =>
-                        'Stok ' . $variant->name . ' tidak mencukupi untuk menyelesaikan transaksi.',
+                    'stock' => 'Stok ' . ($variant->product?->name ?? 'Produk') . ' - ' . $variant->name . ' tidak mencukupi.',
                 ]);
             }
+
+            foreach ($stocks as $stock) {
+                if (
+                    (float) $stock->stock > 0 &&
+                    $stock->average_unit_cost === null
+                ) {
+                    throw ValidationException::withMessages([
+                        'stock' => 'HPP persediaan ' . ($variant->product?->name ?? 'Produk') . ' - ' . $variant->name .
+                            ' di cabang ' . (Branch::whereKey($sale->branch_id)->where('tenant_id', $sale->tenant_id)->value('name') ?? 'terkait') .
+                            ' belum ditentukan.',
+                    ]);
+                }
+            }
+
+            $inventoryValue = $stocks->sum(
+                fn($stock) =>
+                    (float) $stock->stock *
+                    (float) ($stock->average_unit_cost ?? 0)
+            );
+
+            $unitCost = round($inventoryValue / $availableStock, 2);
 
             $remaining = $requiredQuantity;
 
@@ -458,6 +501,62 @@ class PosController extends Controller
                     $remaining -= $deduction;
                 }
             }
+
+            SaleHasProductVariant::where('sale_id', $sale->id)
+                ->where('product_variant_id', $detail->product_variant_id)
+                ->update([
+                    'unit_cost' => $unitCost,
+                ]);
         }
+    }
+
+    public function cancelPayment(Sale $sale)
+    {
+        if ((int) $sale->tenant_id !== (int) $this->tenantId()) {
+            abort(404);
+        }
+
+        if (
+            !$this->isOwner() &&
+            (int) $sale->branch_id !== (int) auth()->user()->branch_id
+        ) {
+            abort(403);
+        }
+
+        DB::transaction(function () use ($sale) {
+            $lockedSale = Sale::whereKey($sale->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ((int) $lockedSale->tenant_id !== (int) $this->tenantId()) {
+                abort(404);
+            }
+
+            if (
+                !$this->isOwner() &&
+                (int) $lockedSale->branch_id !== (int) auth()->user()->branch_id
+            ) {
+                abort(403);
+            }
+
+            if (
+                $lockedSale->payment_method !== 'qris' ||
+                $lockedSale->payment_status !== 'pending'
+            ) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Hanya pembayaran QRIS pending yang dapat dibatalkan.',
+                ]);
+            }
+
+            $lockedSale->update([
+                'payment_status' => 'cancelled',
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Transaksi QRIS berhasil dibatalkan.',
+            'sale_id' => $sale->id,
+            'payment_status' => 'cancelled',
+        ]);
     }
 }

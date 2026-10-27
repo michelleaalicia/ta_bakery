@@ -117,6 +117,43 @@
             font-size: 11px;
             color: #6c757d;
         }
+
+        /* Sidebar brand */
+        .app-sidebar .sidebar-brand {
+            display: flex !important;
+            align-items: center;
+            justify-content: center !important;
+            width: 100%;
+            padding: 0 !important;
+        }
+
+        .app-sidebar .bakery-brand {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            height: 64px;
+            padding: 0;
+            margin: 0;
+            text-decoration: none;
+            box-sizing: border-box;
+            transform: translateX(-7px);
+        }
+
+        .app-sidebar .bakery-brand img {
+            width: 34px;
+            height: 34px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .app-sidebar .bakery-brand span {
+            font-size: 16px;
+            font-weight: 600;
+            color: #25303B;
+            white-space: nowrap;
+        }
     </style>
 </head>
 
@@ -188,10 +225,10 @@
         <aside class="app-sidebar bg-body-tertiary shadow" data-bs-theme="light">
 
             <div class="sidebar-brand">
-                <a href="{{ route('dashboard') }}" class="brand-link">
-                    <span class="brand-text fw-light">
-                        Sistem Bakery
-                    </span>
+                <a href="{{ route('dashboard') }}" class="bakery-brand">
+                    <img src="{{ asset('images/bakery-logo.png') }}" alt="Logo Sistem Bakery">
+
+                    <span>Sistem Bakery</span>
                 </a>
             </div>
 
@@ -368,13 +405,13 @@
 
                         @if ($modules->contains('Riwayat Penjualan'))
                             <li class="nav-item">
-                                <a href="#" class="nav-link">
+                                <a href="{{ route('sales.index') }}"
+                                    class="nav-link {{ request()->routeIs('sales.*') ? 'active' : '' }}">
                                     <i class="nav-icon bi bi-arrow-counterclockwise"></i>
                                     <p>Riwayat Penjualan</p>
                                 </a>
                             </li>
                         @endif
-
 
                         {{-- LAPORAN --}}
                         @if (
@@ -387,7 +424,8 @@
 
                         @if ($modules->contains('Laporan Penjualan'))
                             <li class="nav-item">
-                                <a href="#" class="nav-link">
+                                <a href="{{ route('reports.sales') }}"
+                                    class="nav-link {{ request()->routeIs('reports.sales') ? 'active' : '' }}">
                                     <i class="nav-icon bi bi-bar-chart-line"></i>
                                     <p>Laporan Penjualan</p>
                                 </a>
@@ -396,8 +434,9 @@
 
                         @if ($modules->contains('Laporan Laba Rugi'))
                             <li class="nav-item">
-                                <a href="#" class="nav-link">
-                                    <i class="nav-icon bi bi-graph-up"></i>
+                                <a href="{{ route('reports.gross-profit') }}"
+                                    class="nav-link {{ request()->routeIs('reports.gross-profit') ? 'active' : '' }}">
+                                    <i class="nav-icon bi bi-graph-up-arrow"></i>
                                     <p>Laporan Laba Rugi</p>
                                 </a>
                             </li>
@@ -405,20 +444,19 @@
 
                         @if ($modules->contains('Forecast'))
                             <li class="nav-item">
-                                <a href="#" class="nav-link">
+                                <a href="{{ route('forecasts.index') }}"
+                                    class="nav-link {{ request()->routeIs('forecasts.*') ? 'active' : '' }}">
                                     <i class="nav-icon bi bi-graph-up-arrow"></i>
                                     <p>Forecast</p>
                                 </a>
                             </li>
                         @endif
 
-
                         {{-- SISTEM --}}
                         @if ($modules->contains('Riwayat Aktivitas'))
-                            <li class="nav-header">SISTEM</li>
-
                             <li class="nav-item">
-                                <a href="#" class="nav-link">
+                                <a href="{{ route('audit_logs.index') }}"
+                                    class="nav-link {{ request()->routeIs('audit_logs.*') ? 'active' : '' }}">
                                     <i class="nav-icon bi bi-activity"></i>
                                     <p>Riwayat Aktivitas</p>
                                 </a>
