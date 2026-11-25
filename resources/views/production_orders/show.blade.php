@@ -19,23 +19,7 @@
                 </div>
 
                 <div>
-                    @if ($productionOrder->status === 'planned')
-                        <span class="badge bg-secondary">
-                            Direncanakan
-                        </span>
-                    @elseif ($productionOrder->status === 'in_progress')
-                        <span class="badge bg-warning text-dark">
-                            Berlangsung
-                        </span>
-                    @elseif ($productionOrder->status === 'completed')
-                        <span class="badge bg-success">
-                            Selesai
-                        </span>
-                    @else
-                        <span class="badge bg-danger">
-                            Dibatalkan
-                        </span>
-                    @endif
+                    <x-status-badge :status="$productionOrder->status" />
                 </div>
 
             </div>
@@ -97,15 +81,23 @@
                         </div>
                     </div>
 
-                    <div class="col-md-6">
-                        <div class="text-muted" style="font-size: 13px;">
-                            Biaya Overhead Produksi
-                        </div>
 
-                        <div>
-                            Rp {{ number_format($productionOrder->bop_cost, 0, ',', '.') }}
+
+                    @if ($productionOrder->order_type !== 'custom' && $productionOrder->productVariant?->recipe)
+                        @php
+                            $recipeMinutes = (float) $productionOrder->productVariant->recipe->production_time;
+                        @endphp
+                        <div class="col-md-6 mb-3">
+                            <div class="text-muted" style="font-size: 13px;">Estimasi Durasi 1 Resep</div>
+                            <div>
+                                @if ($recipeMinutes > 0)
+                                    {{ rtrim(rtrim(number_format($recipeMinutes, 2, ',', '.'), '0'), ',') }} menit
+                                @else
+                                    Belum ditentukan
+                                @endif
+                            </div>
                         </div>
-                    </div>
+                    @endif
 
                     @if ($productionOrder->notes)
 
@@ -125,6 +117,12 @@
 
             </div>
 
+
+            {{-- Rincian BOP: menggunakan lebar dan format tabel yang sama seperti Bahan Baku. --}}
+            <div class="mb-4">
+                <h6 class="fw-semibold mb-3">Biaya Overhead Pabrik (BOP)</h6>
+                <x-bop-detail :details="$productionOrder->bopDetails" :total="$productionOrder->bop_cost" />
+            </div>
 
             {{-- Pisahkan bahan estimasi Custom Order dari bahan yang ditambahkan saat produksi. --}}
             @php
@@ -155,7 +153,7 @@
                                         <th style="width: 60px;">No</th>
                                         <th>Nama Bahan</th>
                                         <th>Jumlah Digunakan</th>
-                                        <th>Harga/Satuan</th>
+                                        <th>Harga Rata-Rata/Satuan</th>
                                         <th>Total Biaya</th>
                                     </tr>
                                 </thead>
@@ -166,10 +164,10 @@
                                         @endphp
                                         <tr>
                                             <td>{{ $loop->iteration }}</td>
-                                            <td>{{ $ingredient->name }}</td>
+                                            <td>{{ ($ingredient->master?->name) }}</td>
                                             <td>
                                                 {{ rtrim(rtrim(number_format($ingredient->pivot->quantity_used, 2, ',', '.'), '0'), ',') }}
-                                                {{ $ingredient->unit }}
+                                                {{ ($ingredient->master?->unit) }}
                                             </td>
                                             <td>Rp {{ number_format($ingredient->pivot->unit_cost_used, 0, ',', '.') }}</td>
                                             <td>Rp {{ number_format($totalIngredientCost, 0, ',', '.') }}</td>
@@ -298,7 +296,7 @@
                                     @endphp
                                     <div class="col-md-6">
                                         <label class="form-label" for="material-{{ $ingredient->id }}">
-                                            {{ $ingredient->name }} ({{ $ingredient->unit }})
+                                            {{ ($ingredient->master?->name) }} ({{ ($ingredient->master?->unit) }})
                                         </label>
                                         <input type="number" id="material-{{ $ingredient->id }}"
                                             name="materials[{{ $ingredient->id }}]" class="form-control" min="0" step="any"
@@ -324,7 +322,7 @@
                                     @foreach ($extraProductionIngredients as $ingredient)
                                         <div class="col-md-6">
                                             <label class="form-label" for="extra-saved-material-{{ $ingredient->id }}">
-                                                {{ $ingredient->name }} ({{ $ingredient->unit }})
+                                                {{ ($ingredient->master?->name) }} ({{ ($ingredient->master?->unit) }})
                                             </label>
                                             <input type="number" id="extra-saved-material-{{ $ingredient->id }}"
                                                 name="materials[{{ $ingredient->id }}]" class="form-control" min="0" step="any"
@@ -367,6 +365,8 @@
                                     Karyawan</button>
                             </div>
                             <div id="customExtraLabors"></div>
+
+                            <x-bop-input :amount="$productionOrder->bop_cost" :details="$productionOrder->bopDetails" />
 
                             <button type="submit" class="btn btn-primary mt-3">Simpan Biaya Aktual</button>
                         </form>
@@ -440,7 +440,7 @@
             <div class="border rounded p-3 mb-4">
 
                 <h6 class="fw-semibold mb-3">
-                    Perhitungan Biaya
+                    {{ $productionOrder->status === 'completed' ? 'Perhitungan Biaya' : 'Rincian Biaya Sementara' }}
                 </h6>
 
                 <div class="row">
@@ -485,10 +485,15 @@
                                 HPP per Unit
                             </div>
 
-                            <div class="fs-4 fw-semibold">
-                                Rp {{ number_format($hppPerUnit, 0, ',', '.') }}
-                            </div>
-                            <div class="mt-3 text-muted small">HPP untuk pesanan produksi ini.</div>
+                            @if ($productionOrder->status === 'completed')
+                                <div class="fs-4 fw-semibold">
+                                    Rp {{ number_format($productionOrder->hpp_per_unit, 0, ',', '.') }}
+                                </div>
+                                <div class="mt-3 text-muted small">HPP final produksi ini.</div>
+                            @else
+                                <div class="text-muted">Belum tersedia</div>
+                                <div class="mt-3 text-muted small">HPP final dihitung setelah produksi selesai.</div>
+                            @endif
                         </div>
 
                     </div>
@@ -517,7 +522,7 @@
 
                         </div>
                     </div>
-                    <button type="button" id="openPriceSimulator" class="btn btn-outline-primary" @disabled($hppPerUnit <= 0)>
+                    <button type="button" id="openPriceSimulator" class="btn btn-dark btn-sm btn-simulasi-harga" @disabled($hppPerUnit <= 0)>
                         Simulasi Harga Jual
                     </button>
                 </div>
@@ -543,8 +548,8 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" for="simulatorProfit">Target keuntungan (%)</label>
-                                <input type="number" class="form-control" id="simulatorProfit" min="0" max="1000" step="0.1"
-                                    value="10">
+                                <input type="number" class="form-control" id="simulatorProfit" min="0" max="1000" step="1"
+                                    value="30">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" for="simulatorPrice">Rekomendasi sistem</label>
@@ -557,7 +562,7 @@
                         <label class="form-label fw-semibold" for="finalPrice">Harga pilihan Owner (Rp)</label>
                         <div class="row g-2">
                             <div class="col-sm-7">
-                                <input type="number" min="1" max="9999999999999" step="1" id="finalPrice" class="form-control"
+                                <input type="text" inputmode="numeric" data-rupiah id="finalPrice" class="form-control"
                                     placeholder="Contoh: 5000" value="{{ $hasPrice ? (int) $currentPrice : '' }}"
                                     @disabled(auth()->user()->role?->name !== 'Owner')>
                             </div>
@@ -685,7 +690,7 @@
                                 ? 'Keuntungan pada harga sekarang: ' + percentFormat((current - hpp) / hpp * 100) + '% dari HPP.'
                                 : 'Harga jual belum ditetapkan, sehingga keuntungan pada harga sekarang belum dapat dihitung.';
 
-                            const chosen = Number(finalInput.value);
+                            const chosen = Number(finalInput.value.replace(/\D/g, ''));
                             const validPrice = finalInput.value !== '' && Number.isSafeInteger(chosen) &&
                                 chosen >= 1 && chosen <= 9999999999999;
                             if (applyButton) applyButton.disabled = !validProfit || !validPrice;
@@ -716,6 +721,7 @@
                         document.getElementById('useRecommended').addEventListener('click', function () {
                             if (recommended > 0) {
                                 finalInput.value = recommended;
+                                finalInput.dispatchEvent(new Event('input', { bubbles: true }));
                                 updateSimulator();
                             }
                         });
@@ -726,7 +732,7 @@
                                 event.preventDefault();
                                 return;
                             }
-                            const chosen = Number(finalInput.value);
+                            const chosen = Number(finalInput.value.replace(/\D/g, ''));
                             if (!confirm('Terapkan ' + rupiah(chosen) + ' di Produk dan POS untuk SEMUA cabang?' +
                                 (chosen < hpp ? '\nHarga ini di bawah HPP.' : ''))) {
                                 event.preventDefault();
@@ -770,6 +776,11 @@
 
 
                 @elseif ($productionOrder->status === 'in_progress')
+                    @if ($productionOrder->order_type === 'regular')
+                        <a href="{{ route('production_orders.edit', $productionOrder) }}" class="btn btn-warning">
+                            Edit Bahan & Karyawan
+                        </a>
+                    @endif
 
                     <form action="{{ route('production_orders.update-status', $productionOrder) }}" method="POST"
                         class="d-inline"

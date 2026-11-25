@@ -4,71 +4,63 @@
 @section('page-title', 'Kelola Role')
 
 @section('content')
+<div class="card">
+    <div class="card-body">
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if(session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
 
-    <div class="card">
-        <div class="card-body">
+        <div class="mb-3">
+            <a href="{{ route('roles.create') }}" class="btn btn-dark btn-sm">Tambah Role</a>
+        </div>
 
-            <div class="mb-3">
-                <a href="{{ route('roles.create') }}" class="btn btn-dark btn-sm">
-                    Tambah Role
-                </a>
-            </div>
-
-            <table class="table table-bordered">
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle w-100">
                 <thead>
                     <tr>
-                        <th>No</th>
-                        <th>Nama Role</th>
+                        <th style="width:55px">No</th>
+                        <th style="width:130px">Nama Role</th>
                         <th>Permission</th>
-                        <th>Aksi</th>
+                        <th style="width:160px">Aksi</th>
                     </tr>
                 </thead>
-
                 <tbody>
                     @forelse ($roles as $role)
                         <tr>
                             <td>{{ $loop->iteration }}</td>
                             <td>{{ $role->name }}</td>
                             <td>
-                                @foreach ($role->modules as $module)
-                                    <span class="badge text-bg-light">
-                                        {{ $module->name }}
-                                    </span>
-                                @endforeach
+                                @forelse ($role->modules->filter(fn($module) => $module->name !== 'Job Description') as $module)
+                                    <span class="badge text-bg-light">{{ $module->name }}</span>
+                                @empty
+                                    <span class="text-muted">Tidak ada permission yang ditampilkan</span>
+                                @endforelse
                             </td>
                             <td>
-                                <a href="{{ route('roles.edit', $role) }}" class="btn btn-warning btn-sm">
-                                    Edit
-                                </a>
-
-                                <form action="{{ route('roles.destroy', $role) }}" method="POST" class="d-inline">
-                                    @csrf
-                                    @method('DELETE')
-
-                                    <button type="submit" class="btn btn-danger btn-sm"
-                                        onclick="return confirm('Hapus role ini?')">
-                                        Hapus
-                                    </button>
-                                </form>
+                                <div class="d-flex align-items-center gap-1 flex-nowrap">
+                                    <a href="{{ route('roles.edit', $role) }}" class="btn btn-warning btn-sm text-nowrap">Edit</a>
+                                    <form action="{{ route('roles.destroy', $role) }}" method="POST" class="m-0"
+                                          onsubmit="return confirm('Hapus role ini?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-danger btn-sm text-nowrap">Hapus</button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     @empty
-                        <tr>
-                            <td colspan="4" class="text-center">
-                                Belum ada role.
-                            </td>
-                        </tr>
+                        <tr><td colspan="4" class="text-center">Belum ada role.</td></tr>
                     @endforelse
                 </tbody>
             </table>
+        </div>
 
-            <div class="mt-3">
-                <a href="{{ route('users.index') }}" class="btn btn-secondary btn-sm">
-                    Kembali
-                </a>
-            </div>
-
+        <div class="mt-3">
+            <a href="{{ route('users.index') }}" class="btn btn-secondary btn-sm">Kembali</a>
         </div>
     </div>
-
+</div>
 @endsection

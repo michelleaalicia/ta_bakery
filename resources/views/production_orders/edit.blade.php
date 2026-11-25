@@ -74,18 +74,8 @@
                     </div>
                 </div>
 
-                {{-- BOP --}}
-                <div class="mb-3">
-                    <label class="form-label">Biaya Overhead Produksi</label>
-
-                    <div class="input-group">
-                        <span class="input-group-text">Rp</span>
-
-                        <input type="text" name="bop_cost" id="bop_cost"
-                            value="{{ old('bop_cost', number_format($productionOrder->bop_cost, 0, ',', '.')) }}"
-                            class="form-control" placeholder="Contoh: 50000" required>
-                    </div>
-                </div>
+                {{-- BOP Total atau Rinci --}}
+                <x-bop-input :amount="$productionOrder->bop_cost" :details="$productionOrder->bopDetails" />
 
                 {{-- Karyawan --}}
                 <div class="mb-3">
@@ -175,18 +165,7 @@
     </div>
 
     <script>
-        // Format BOP
-        const bopInput = document.getElementById('bop_cost');
 
-        if (bopInput) {
-            bopInput.addEventListener('input', function () {
-                const value = this.value.replace(/\D/g, '');
-
-                if (value) {
-                    this.value = new Intl.NumberFormat('id-ID').format(value);
-                }
-            });
-        }
 
         // Elemen dan data awal
         const branchInput = document.getElementById('branch_id');

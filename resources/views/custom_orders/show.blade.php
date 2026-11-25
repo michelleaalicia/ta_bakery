@@ -46,11 +46,7 @@
 
 
 
-                <span class="badge bg-secondary">
-
-                    {{ ucfirst($customOrder->status) }}
-
-                </span>
+                <x-status-badge :status="$customOrder->status" type="custom" />
 
             </div>
 
@@ -256,261 +252,90 @@
 
 
 
+    @php
+        $editEstimation = $customOrder->status === 'draft' && auth()->user()->role?->name === 'Owner';
+    @endphp
+    @if ($editEstimation)
+        <form id="estimationForm" method="POST" action="{{ route('custom_orders.estimation', $customOrder) }}">
+            @csrf
+            @method('PATCH')
+    @endif
+
     <div class="card mb-3">
-
-        <div class="card-header">
-
-            <h5 class="mb-0">B. Estimasi Tenaga Kerja dan Overhead</h5>
-
-        </div>
-
-
-
+        <div class="card-header"><h5 class="mb-0">B. Estimasi Biaya Tenaga Kerja Langsung (BTKL)</h5></div>
         <div class="card-body">
-
-            @if ($customOrder->status === 'draft' && auth()->user()->role?->name === 'Owner')
-
-                <form method="POST" action="{{ route('custom_orders.estimation', $customOrder) }}">
-
-                    @csrf
-
-                    @method('PATCH')
-
-
-
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-
-                        <h6 class="mb-0">Rencana Tenaga Kerja Langsung</h6>
-
-
-
-                        <button type="button" id="addLabor" class="btn btn-dark btn-sm">
-
-                            <i class="bi bi-plus"></i> Tambah Karyawan
-
-                        </button>
-
-                    </div>
-
-
-
-                    <div id="laborContainer"></div>
-
-
-
-                    <div class="border rounded p-3 mb-4 d-flex justify-content-between">
-
-                        <strong>Total Estimasi BTKL</strong>
-
-                        <strong id="laborPreview">Rp 0</strong>
-
-                    </div>
-
-
-
-                    <h6 class="mb-3">Estimasi Biaya Overhead Produksi</h6>
-
-
-
-                    <div class="mb-3">
-
-                        <label for="estimated_bop_cost" class="form-label">
-
-                            Total BOP per Pesanan (Rp)
-
-                        </label>
-
-
-
-                        <div class="input-group">
-
-                            <span class="input-group-text">Rp</span>
-
-
-
-                            <input type="text" inputmode="numeric" pattern="[0-9]+" name="estimated_bop_cost"
-                                id="estimated_bop_cost" class="form-control"
-                                value="{{ old('estimated_bop_cost', $customOrder->estimated_bop_cost !== null ? (int) $customOrder->estimated_bop_cost : '') }}"
-                                placeholder="Contoh: 50000" required>
-
-                        </div>
-
-                    </div>
-
-
-
-                    <button type="submit" class="btn btn-dark">
-
-                        Simpan Estimasi
-
-                    </button>
-
-                </form>
-
-            @else
-
-                <div class="table-responsive">
-
-                    <table class="table table-bordered align-middle">
-
-                        <thead>
-
-                            <tr>
-
-                                <th>Karyawan</th>
-
-                                <th>Pekerjaan</th>
-
-                                <th>Jam Kerja</th>
-
-                                <th>Tarif/Jam</th>
-
-                                <th>Total Biaya</th>
-
-                            </tr>
-
-                        </thead>
-
-
-
-                        <tbody>
-
-                            @forelse ($customOrder->labors as $labor)
-
-                                <tr>
-
-                                    <td>{{ $labor->user?->name ?? '-' }}</td>
-
-                                    <td>{{ preg_replace('/\s*\([0-9]+(?:\.[0-9]+)? jam\)/u', '', $labor->job_description) }}</td>
-
-                                    <td>{{ rtrim(rtrim(number_format((float) $labor->estimated_hours, 2, ',', '.'), '0'), ',') }}
-                                        jam</td>
-
-                                    <td>Rp {{ number_format($labor->estimated_rate, 0, ',', '.') }}</td>
-
-                                    <td>Rp {{ number_format($labor->estimated_cost, 0, ',', '.') }}</td>
-
-                                </tr>
-
-                            @empty
-
-                                <tr>
-
-                                    <td colspan="5" class="text-center text-muted">
-
-                                        Belum ada rencana tenaga kerja.
-
-                                    </td>
-
-                                </tr>
-
-                            @endforelse
-
-                        </tbody>
-
-                    </table>
-
+            <h6 class="mb-3">Rencana Tenaga Kerja Langsung</h6>
+            @if ($editEstimation)
+                <div id="laborContainer"></div>
+                <button type="button" id="addLabor" class="btn btn-secondary btn-sm mb-3">
+                    <i class="bi bi-plus"></i> Tambah Karyawan
+                </button>
+                <div class="border rounded p-3 d-flex justify-content-between align-items-center">
+                    <span>Total Estimasi BTKL</span><strong id="laborPreview">Rp 0</strong>
                 </div>
-
+            @else
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle">
+                        <thead><tr><th>No</th><th>Karyawan</th><th>Pekerjaan</th><th>Jam Kerja</th><th>Tarif/Jam</th><th>Total Biaya</th></tr></thead>
+                        <tbody>
+                            @forelse ($customOrder->labors as $labor)
+                                <tr>
+                                    <td>{{ $loop->iteration }}</td>
+                                    <td>{{ $labor->user?->name ?? '-' }}</td>
+                                    <td>{{ preg_replace('/\s*\([0-9]+(?:\.[0-9]+)? jam\)/u', '', $labor->job_description) }}</td>
+                                    <td>{{ (float) $labor->estimated_hours }} jam</td>
+                                    <td>Rp {{ number_format($labor->estimated_rate, 0, ',', '.') }}</td>
+                                    <td>Rp {{ number_format($labor->estimated_cost, 0, ',', '.') }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="6" class="text-center text-muted">Belum ada rencana tenaga kerja.</td></tr>
+                            @endforelse
+                        </tbody>
+                        <tfoot><tr><th colspan="5">Total Estimasi BTKL</th><th>Rp {{ number_format($laborCost, 0, ',', '.') }}</th></tr></tfoot>
+                    </table>
+                </div>
             @endif
-
-
-
-            <div class="d-flex justify-content-between mb-2">
-
-                <span>Estimasi BTKL Tersimpan</span>
-
-                <strong>Rp {{ number_format($laborCost, 0, ',', '.') }}</strong>
-
-            </div>
-
-
-
-            <div class="d-flex justify-content-between">
-
-                <span>Estimasi BOP Tersimpan</span>
-
-                <strong>Rp {{ number_format($overheadCost, 0, ',', '.') }}</strong>
-
-            </div>
-
         </div>
-
     </div>
 
-
-
     <div class="card mb-3">
-
-        <div class="card-header">
-
-            <h5 class="mb-0">C. Rekapitulasi Estimasi Biaya Pesanan</h5>
-
-        </div>
-
-
-
+        <div class="card-header"><h5 class="mb-0">C. Estimasi Biaya Overhead Pabrik (BOP)</h5></div>
         <div class="card-body">
-
-            <table class="table table-bordered">
-
-                <tbody>
-
-                    <tr>
-
-                        <td>Biaya Bahan Baku Langsung (BBB)</td>
-
-                        <td class="text-end">Rp {{ number_format($materialCost, 0, ',', '.') }}</td>
-
-                    </tr>
-
-                    <tr>
-
-                        <td>Biaya Tenaga Kerja Langsung (BTKL)</td>
-
-                        <td class="text-end">Rp {{ number_format($laborCost, 0, ',', '.') }}</td>
-
-                    </tr>
-
-                    <tr>
-
-                        <td>Biaya Overhead Pabrik (BOP)</td>
-
-                        <td class="text-end">Rp {{ number_format($overheadCost, 0, ',', '.') }}</td>
-
-                    </tr>
-
-                    <tr class="table-light">
-
-                        <th>Total Estimasi Biaya Pesanan</th>
-
-                        <th class="text-end">Rp {{ number_format($totalCost, 0, ',', '.') }}</th>
-
-                    </tr>
-
-                    <tr>
-
-                        <th>Estimasi HPP per Unit</th>
-
-                        <th class="text-end">Rp {{ number_format($costPerUnit, 0, ',', '.') }}</th>
-
-                    </tr>
-
-                </tbody>
-
-            </table>
-
+            @if ($editEstimation)
+                <x-bop-input field="estimated_bop_cost" :amount="$customOrder->estimated_bop_cost" :details="$customOrder->bopDetails" />
+                <div id="estimationSaveStatus" class="small text-muted mt-2" aria-live="polite">
+                    Perubahan akan disimpan otomatis setelah data lengkap.
+                </div>
+            @else
+                <x-bop-detail :details="$customOrder->bopDetails" :total="$overheadCost" />
+            @endif
         </div>
-
     </div>
 
+    @if ($editEstimation)
+        </form>
+    @endif
 
+    <div class="card mb-3">
+        <div class="card-header"><h5 class="mb-0">D. Rekapitulasi Estimasi Biaya Pesanan</h5></div>
+        <div class="card-body">
+            <table class="table table-bordered align-middle mb-0">
+                <tbody>
+                    <tr><td>Biaya Bahan Baku Langsung (BBB)</td><td class="text-end">Rp {{ number_format($materialCost, 0, ',', '.') }}</td></tr>
+                    <tr><td>Biaya Tenaga Kerja Langsung (BTKL)</td><td class="text-end" id="rekapBtkl">Rp {{ number_format($laborCost, 0, ',', '.') }}</td></tr>
+                    <tr><td>Biaya Overhead Pabrik (BOP)</td><td class="text-end" id="rekapBop">Rp {{ number_format($overheadCost, 0, ',', '.') }}</td></tr>
+                    <tr class="table-light"><th>Total Estimasi Biaya Pesanan</th><th class="text-end" id="rekapTotal">Rp {{ number_format($totalCost, 0, ',', '.') }}</th></tr>
+                    <tr><th>Estimasi HPP per Unit</th><th class="text-end" id="rekapHpp">Rp {{ number_format($costPerUnit, 0, ',', '.') }}</th></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 
     <div class="card mb-3">
 
         <div class="card-header">
 
-            <h5 class="mb-0">D. Penentuan Harga Jual</h5>
+            <h5 class="mb-0">E. Penentuan Harga Jual</h5>
 
         </div>
 
@@ -536,7 +361,7 @@
 
                         <label class="form-label">Markup atas Biaya (%)</label>
 
-                        <input type="number" id="markup" class="form-control" min="0" step="0.01" value="30">
+                        <input type="number" id="markup" class="form-control" min="0" step="1" value="30">
 
                     </div>
 
@@ -572,8 +397,8 @@
 
                         <label class="form-label">Harga Penawaran Total Pesanan (Rp)</label>
 
-                        <input type="text" name="selling_price" id="sellingPrice" class="form-control" inputmode="numeric"
-                            pattern="[0-9]+"
+                        <input type="text" name="selling_price" data-rupiah id="sellingPrice" class="form-control" inputmode="numeric"
+                            
                             value="{{ old('selling_price', $customOrder->selling_price !== null ? (int) $customOrder->selling_price : '') }}"
                             required>
 
@@ -783,7 +608,11 @@
 
 
 
-            const totalCost = @json((float) $totalCost);
+            let totalCost = @json((float) $totalCost);
+            document.addEventListener('estimation-preview', event => {
+                totalCost = event.detail.total;
+                calculateRecommendedPrice();
+            });
 
 
 
@@ -810,6 +639,7 @@
                 const markup = Math.max(0, Number(markupInput.value) || 0);
 
                 sellingPriceInput.value = Math.ceil(totalCost * (1 + markup / 100));
+                sellingPriceInput.dispatchEvent(new Event('input', { bubbles: true }));
 
             });
 
@@ -1129,7 +959,7 @@
 
 
 
-            addButton.addEventListener('click', () => addLabor());
+            addButton.addEventListener('click', () => { addLabor(); document.getElementById('estimationForm')?.dispatchEvent(new Event('change', { bubbles: true })); });
 
 
 
@@ -1160,6 +990,7 @@
                 button.closest('.labor-row').remove();
 
                 updateCosts();
+                document.getElementById('estimationForm')?.dispatchEvent(new Event('change', { bubbles: true }));
 
             });
 
@@ -1179,4 +1010,114 @@
 
     </script>
 
+@endpush
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('estimationForm');
+    if (!form) return;
+    const status = document.getElementById('estimationSaveStatus');
+    const money = number => 'Rp ' + Math.round(number || 0).toLocaleString('id-ID');
+    const digits = value => Number(String(value ?? '').replace(/\D/g, '')) || 0;
+    const bbb = @json((float) $materialCost);
+    const quantity = @json((float) $customOrder->quantity);
+    let timer, saving = false, dirty = false;
+
+    function values() {
+        const labor = [...form.querySelectorAll('.labor-row')].reduce((sum, row) => {
+            const employee = row.querySelector('.labor-user');
+            // Tarif ditampilkan oleh skrip tenaga kerja yang sudah ada.
+            const rateText = row.querySelector('.labor-rate')?.textContent ?? '';
+            const rate = digits(rateText);
+            return sum + (Number(row.querySelector('.labor-hours')?.value) || 0) * rate;
+        }, 0);
+        const detailed = form.querySelector('input[name="bop_mode"]:checked')?.value === 'detailed';
+        const bop = detailed
+            ? [...form.querySelectorAll('[data-bop-rows] input[name$="[amount]"]')].reduce((sum, input) => sum + digits(input.value), 0)
+            : digits(form.querySelector('[name="estimated_bop_cost"]')?.value);
+        return {labor, bop};
+    }
+
+    function preview() {
+        const {labor, bop} = values();
+        const total = bbb + labor + bop;
+        const update = (id, value) => { const element = document.getElementById(id); if (element) element.textContent = money(value); };
+        update('rekapBtkl', labor);
+        update('rekapBop', bop);
+        update('rekapTotal', total);
+        update('rekapHpp', quantity > 0 ? total / quantity : 0);
+        document.dispatchEvent(new CustomEvent('estimation-preview', { detail: { total } }));
+    }
+
+    function isReady() {
+        const laborRows = [...form.querySelectorAll('.labor-row')];
+        if (!laborRows.length || laborRows.some(row =>
+            !row.querySelector('.labor-user')?.value ||
+            !row.querySelector('.labor-job')?.value ||
+            !(Number(row.querySelector('.labor-hours')?.value) > 0)
+        )) return false;
+        const detailed = form.querySelector('input[name="bop_mode"]:checked')?.value === 'detailed';
+        if (detailed) {
+            const inputs = [...form.querySelectorAll('[data-bop-rows] input[name$="[amount]"]')];
+            return inputs.length > 0 && inputs.every(input => input.value.trim() !== '');
+        }
+        return form.querySelector('[name="estimated_bop_cost"]')?.value.trim() !== '';
+    }
+
+    async function save() {
+        if (saving || !dirty) return;
+        if (!isReady()) {
+            status.textContent = 'Lengkapi data karyawan dan BOP agar bisa disimpan otomatis.';
+            return;
+        }
+        saving = true;
+        dirty = false;
+        status.textContent = 'Menyimpan estimasi...';
+        const data = new FormData(form);
+        // FormData harus membawa angka Rupiah tanpa tanda pemisah ribuan.
+        for (const [name, value] of data.entries()) {
+            if (name === 'estimated_bop_cost' || /^bop_items\[\d+\]\[amount\]$/.test(name)) {
+                data.set(name, String(value).replace(/\D/g, ''));
+            }
+        }
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: data
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                status.textContent = Object.values(result.errors || {}).flat()[0] || result.message || 'Gagal menyimpan estimasi.';
+            } else {
+                status.textContent = 'Estimasi tersimpan otomatis.';
+            }
+        } catch (error) {
+            status.textContent = 'Koneksi bermasalah. Perubahan belum tersimpan.';
+        } finally {
+            saving = false;
+            if (dirty && isReady()) { clearTimeout(timer); timer = setTimeout(save, 1200); }
+        }
+    }
+
+    function schedule() {
+        dirty = true;
+        preview();
+        clearTimeout(timer);
+        status.textContent = 'Perubahan belum tersimpan...';
+        timer = setTimeout(save, 900);
+    }
+    form.addEventListener('input', schedule);
+    form.addEventListener('change', schedule);
+    form.addEventListener('click', event => {
+        if (event.target.closest('[data-bop-remove], [data-bop-add], .remove-labor')) {
+            setTimeout(schedule, 0);
+        }
+    });
+    form.addEventListener('submit', event => event.preventDefault());
+    // Pratinjau tidak otomatis dianggap perubahan ketika membuka halaman.
+    setTimeout(preview, 0);
+});
+</script>
 @endpush

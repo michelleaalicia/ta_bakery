@@ -13,6 +13,8 @@ return new class extends Migration {
         Schema::create('audit_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users');
+            $table->foreignId('tenant_id')->nullable()->index();
+            $table->foreignId('branch_id')->nullable()->index();
             $table->string('action', 50);
             $table->string('table_name', 50);
             $table->unsignedBigInteger('record_id');

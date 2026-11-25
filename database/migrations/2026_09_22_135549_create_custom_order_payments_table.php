@@ -18,6 +18,7 @@ return new class extends Migration {
             $table->date('payment_date');
             $table->string('payment_method', 50);
             $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('updated_at')->nullable();
         });
     }
 

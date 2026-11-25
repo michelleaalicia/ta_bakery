@@ -8,9 +8,10 @@
     <title>Daftar - Sistem Bakery</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <link rel="stylesheet" href="{{ asset('css/bakery-auth.css') }}?v=1">
 </head>
 
-<body class="min-h-screen bg-gray-50">
+<body class="min-h-screen bg-gray-50 bakery-auth">
 
     <div class="min-h-screen flex items-center justify-center px-4 py-8">
 
@@ -19,10 +20,8 @@
             {{-- Logo --}}
             <div class="flex flex-col items-center mb-6">
 
-                <div class="w-12 h-12 border border-gray-300 bg-gray-50 flex items-center justify-center mb-3">
-                    <span class="text-xs text-gray-400">
-                        Logo
-                    </span>
+                <div class="flex justify-center mb-3">
+                    <img src="{{ asset('images/bakery-logo.png') }}" alt="Logo Bakery" class="w-16 h-16 object-contain">
                 </div>
 
                 <h1 class="text-xl font-bold text-gray-900">

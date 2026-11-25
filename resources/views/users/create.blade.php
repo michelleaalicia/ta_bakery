@@ -109,7 +109,7 @@
                     <div class="input-group">
                         <span class="input-group-text">Rp</span>
 
-                        <input type="text" name="wage_rate_per_hour" id="wage_rate_per_hour"
+                        <input type="text" name="wage_rate_per_hour" data-rupiah id="wage_rate_per_hour"
                             value="{{ old('wage_rate_per_hour') }}"
                             class="form-control @error('wage_rate_per_hour') is-invalid @enderror"
                             placeholder="Masukkan tarif upah per jam" required>
@@ -157,17 +157,5 @@
         </form>
 
     </div>
-
-    <script>
-        const wageInput = document.getElementById('wage_rate_per_hour');
-
-        wageInput.addEventListener('input', function () {
-            let value = this.value.replace(/\D/g, '');
-
-            if (value) {
-                this.value = new Intl.NumberFormat('id-ID').format(value);
-            }
-        });
-    </script>
 
 @endsection

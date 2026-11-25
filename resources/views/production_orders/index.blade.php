@@ -184,15 +184,7 @@
                                 </td>
 
                                 <td>
-                                    @if ($productionOrder->status === 'planned')
-                                        <span class="badge bg-secondary">Direncanakan</span>
-                                    @elseif ($productionOrder->status === 'in_progress')
-                                        <span class="badge bg-warning text-dark">Berlangsung</span>
-                                    @elseif ($productionOrder->status === 'completed')
-                                        <span class="badge bg-success">Selesai</span>
-                                    @else
-                                        <span class="badge bg-danger">Dibatalkan</span>
-                                    @endif
+                                    <x-status-badge :status="$productionOrder->status" />
                                 </td>
 
                                 <td>

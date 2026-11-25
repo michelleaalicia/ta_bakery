@@ -70,12 +70,14 @@
                     <div class="col-md-6">
                         <label class="form-label">Tanggal Pesanan</label>
                         <input type="date" name="order_date" id="order_date" class="form-control"
+                            max="{{ now()->toDateString() }}"
                             value="{{ old('order_date', $customOrder->order_date) }}" required>
                     </div>
 
                     <div class="col-md-6">
                         <label class="form-label">Tanggal Dibutuhkan</label>
                         <input type="date" name="required_date" id="required_date" class="form-control"
+                            min="{{ now()->toDateString() }}"
                             value="{{ old('required_date', $customOrder->required_date) }}" required>
                     </div>
                 </div>
@@ -271,9 +273,9 @@
             const requiredDate = document.getElementById('required_date');
 
             function updateRequiredDate() {
-                requiredDate.min = orderDate.value;
+                requiredDate.min = @json(now()->toDateString());
 
-                if (requiredDate.value && requiredDate.value < orderDate.value) {
+                if (requiredDate.value && requiredDate.value < requiredDate.min) {
                     requiredDate.value = '';
                 }
             }

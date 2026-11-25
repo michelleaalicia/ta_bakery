@@ -8,9 +8,10 @@
     <title>Login - Sistem Bakery</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <link rel="stylesheet" href="{{ asset('css/bakery-auth.css') }}?v=1">
 </head>
 
-<body class="min-h-screen bg-gray-50">
+<body class="min-h-screen bg-gray-50 bakery-auth">
 
     <div class="min-h-screen flex items-center justify-center px-4">
 
@@ -69,9 +70,6 @@
                         </div>
 
                     </div>
-
-
-                    {{-- Password --}}
 
                     {{-- Password --}}
                     <div>

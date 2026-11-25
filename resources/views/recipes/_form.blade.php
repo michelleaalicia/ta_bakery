@@ -67,7 +67,7 @@
         <label class="form-label">Waktu Produksi</label>
         <div class="input-group">
             <input type="number" name="production_time" class="form-control"
-                min="0.01" step="0.01" placeholder="Contoh: 60"
+                min="1" step="1" placeholder="Contoh: 60"
                 value="{{ old('production_time', $isEdit ? $recipe->production_time : '') }}" required>
             <span class="input-group-text">menit</span>
         </div>
@@ -102,9 +102,9 @@
                             class="form-select ingredient-select" onchange="updateUnit(this)" required>
                             <option value="">Pilih Bahan</option>
                             @foreach ($ingredients as $ingredient)
-                                <option value="{{ $ingredient->id }}" data-unit="{{ $ingredient->unit }}"
+                                <option value="{{ $ingredient->id }}" data-unit="{{ ($ingredient->master?->unit) }}"
                                     @selected(($row['ingredient_id'] ?? '') == $ingredient->id)>
-                                    {{ $ingredient->name }} - {{ $ingredient->branch?->name ?? 'Tanpa Cabang' }}
+                                    {{ ($ingredient->master?->name) }} - {{ $ingredient->branch?->name ?? 'Tanpa Cabang' }}
                                 </option>
                             @endforeach
                         </select>
@@ -143,8 +143,8 @@
                     class="form-select ingredient-select" onchange="updateUnit(this)" required>
                     <option value="">Pilih Bahan</option>
                     @foreach ($ingredients as $ingredient)
-                        <option value="{{ $ingredient->id }}" data-unit="{{ $ingredient->unit }}">
-                            {{ $ingredient->name }} - {{ $ingredient->branch?->name ?? 'Tanpa Cabang' }}
+                        <option value="{{ $ingredient->id }}" data-unit="{{ ($ingredient->master?->unit) }}">
+                            {{ ($ingredient->master?->name) }} - {{ $ingredient->branch?->name ?? 'Tanpa Cabang' }}
                         </option>
                     @endforeach
                 </select>

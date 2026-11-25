@@ -105,7 +105,7 @@
                             <label for="cashReceived" class="form-label">
                                 Uang diterima
                             </label>
-                            <input type="text" id="cashReceived" class="form-control" inputmode="numeric" pattern="[0-9]*"
+                            <input type="text" id="cashReceived" data-rupiah class="form-control" inputmode="numeric"
                                 placeholder="Masukkan jumlah uang">
 
                             <div class="change-box">
@@ -655,11 +655,12 @@
             const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
             const productsUrl = @json(route('pos.products'));
             const checkoutUrl = @json(route('pos.checkout'));
-            const confirmUrlTemplate = @json(route('pos.confirm-payment', ['sale' => '__SALE_ID__']));
+            const statusUrlTemplate = @json(route('pos.qris-status', ['sale' => '__SALE_ID__']));
 
             let products = [];
             let cart = [];
             let activeSaleId = null;
+            let statusTimer = null;
             let activeBranchId = branchSelect ? branchSelect.value : @json($selectedBranchId);
 
             function formatRupiah(value) {
@@ -827,33 +828,33 @@
 
                         const image = variant.image
                             ? `<img src="/storage/product_variants/${encodeURIComponent(variant.image)}"
-                                                                                                                                            alt="${escapeHtml(product.product_name)}"
-                                                                                                                                            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                                                                                                                                           <i class="bi bi-basket image-placeholder"
-                                                                                                                                            style="display:none"></i>`
+                                                                                                                                                alt="${escapeHtml(product.product_name)}"
+                                                                                                                                                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                                                                                                                                               <i class="bi bi-basket image-placeholder"
+                                                                                                                                                style="display:none"></i>`
                             : `<i class="bi bi-basket image-placeholder"></i>`;
 
 
                         return `
-                                                                                                                                                                                                <article class="product-card">
-                                                                                                                                                                                                    <div class="product-image">${image}</div>
-                                                                                                                                                                                                    <div class="product-info">
-                                                                                                                                                                                                        <div class="product-category">${escapeHtml(product.category)}</div>
-                                                                                                                                                                                                        <div class="product-name">${escapeHtml(product.product_name)}</div>
-                                                                                                                                                                                                        <div class="product-variant">${escapeHtml(variant.variant_name)}</div>
-                                                                                                                                                                                                        <div class="product-price">${formatRupiah(price)}</div>
-                                                                                                                                                                                                        <div class="product-stock ${remainingStock <= 0 ? 'out' : ''}">
-                                                                                                                                                                                                            Stok: ${remainingStock}
+                                                                                                                                                                                                    <article class="product-card">
+                                                                                                                                                                                                        <div class="product-image">${image}</div>
+                                                                                                                                                                                                        <div class="product-info">
+                                                                                                                                                                                                            <div class="product-category">${escapeHtml(product.category)}</div>
+                                                                                                                                                                                                            <div class="product-name">${escapeHtml(product.product_name)}</div>
+                                                                                                                                                                                                            <div class="product-variant">${escapeHtml(variant.variant_name)}</div>
+                                                                                                                                                                                                            <div class="product-price">${formatRupiah(price)}</div>
+                                                                                                                                                                                                            <div class="product-stock ${remainingStock <= 0 ? 'out' : ''}">
+                                                                                                                                                                                                                Stok: ${remainingStock}
+                                                                                                                                                                                                            </div>
+                                                                                                                                                                                                            ${disabledReason ? `<div class="text-danger mt-1" style="font-size:11px">${disabledReason}</div>` : ''}
+                                                                                                                                                                                                            <button type="button"
+                                                                                                                                                                                                                class="btn btn-sm ${canAdd && remainingStock > 0 ? 'btn-outline-dark' : 'btn-outline-secondary'} add-product"
+                                                                                                                                                                                                                data-variant-id="${variant.variant_id}"
+                                                                                                                                                                                                                ${!canAdd || remainingStock <= 0 ? 'disabled' : ''}>
+                                                                                                                                                                                                                <i class="bi bi-plus-lg me-1"></i>Tambah
+                                                                                                                                                                                                            </button>
                                                                                                                                                                                                         </div>
-                                                                                                                                                                                                        ${disabledReason ? `<div class="text-danger mt-1" style="font-size:11px">${disabledReason}</div>` : ''}
-                                                                                                                                                                                                        <button type="button"
-                                                                                                                                                                                                            class="btn btn-sm ${canAdd && remainingStock > 0 ? 'btn-outline-dark' : 'btn-outline-secondary'} add-product"
-                                                                                                                                                                                                            data-variant-id="${variant.variant_id}"
-                                                                                                                                                                                                            ${!canAdd || remainingStock <= 0 ? 'disabled' : ''}>
-                                                                                                                                                                                                            <i class="bi bi-plus-lg me-1"></i>Tambah
-                                                                                                                                                                                                        </button>
-                                                                                                                                                                                                    </div>
-                                                                                                                                                                                                </article>`;
+                                                                                                                                                                                                    </article>`;
                     }).join('');
                 }).join('');
             }
@@ -868,40 +869,40 @@
 
                 if (cart.length === 0) {
                     cartItems.innerHTML = `
-                                                                                                                                                                                            <div class="empty-cart">
-                                                                                                                                                                                                <i class="bi bi-cart3"></i>
-                                                                                                                                                                                                <p>Keranjang masih kosong</p>
-                                                                                                                                                                                                <span>Pilih produk untuk memulai transaksi.</span>
-                                                                                                                                                                                            </div>`;
+                                                                                                                                                                                                <div class="empty-cart">
+                                                                                                                                                                                                    <i class="bi bi-cart3"></i>
+                                                                                                                                                                                                    <p>Keranjang masih kosong</p>
+                                                                                                                                                                                                    <span>Pilih produk untuk memulai transaksi.</span>
+                                                                                                                                                                                                </div>`;
                 } else {
                     cartItems.innerHTML = cart.map(item => `
-                                                                                                                                                                                            <div class="cart-item">
-                                                                                                                                                                                                <div>
-                                                                                                                                                                                                    <div class="cart-item-name">${escapeHtml(item.product_name)} - ${escapeHtml(item.variant_name)}</div>
-                                                                                                                                                                                                    <div class="cart-item-price">${formatRupiah(item.price)} / unit</div>
-                                                                                                                                                                                                </div>
-                                                                                                                                                                                                <div>
-                                                                                                                                                                                                    <div class="cart-item-subtotal">${formatRupiah(item.price * item.quantity)}</div>
-                                                                                                                                                                                                    <div class="quantity-control">
-                                                                                                                                                                                                        <button type="button" class="btn btn-sm btn-outline-secondary"
-                                                                                                                                                                                                            data-action="decrease" data-id="${item.variant_id}"
-                                                                                                                                                                                                            aria-label="Kurangi jumlah">−</button>
-                                                                                                                                                                                                        <span class="quantity-value">${item.quantity}</span>
-                                                                                                                                                                                                        <button type="button" class="btn btn-sm btn-outline-secondary"
-                                                                                                                                                                                                            data-action="increase" data-id="${item.variant_id}"
-                                                                                                                                                                                                            aria-label="Tambah jumlah">+</button>
-                                                                                                                                                                                                        <button type="button" class="remove-item"
-                                                                                                                                                                                                            data-action="remove" data-id="${item.variant_id}"
-                                                                                                                                                                                                            aria-label="Hapus item">
-                                                                                                                                                                                                            <i class="bi bi-trash"></i>
-                                                                                                                                                                                                        </button>
+                                                                                                                                                                                                <div class="cart-item">
+                                                                                                                                                                                                    <div>
+                                                                                                                                                                                                        <div class="cart-item-name">${escapeHtml(item.product_name)} - ${escapeHtml(item.variant_name)}</div>
+                                                                                                                                                                                                        <div class="cart-item-price">${formatRupiah(item.price)} / unit</div>
                                                                                                                                                                                                     </div>
-                                                                                                                                                                                                </div>
-                                                                                                                                                                                            </div>`).join('');
+                                                                                                                                                                                                    <div>
+                                                                                                                                                                                                        <div class="cart-item-subtotal">${formatRupiah(item.price * item.quantity)}</div>
+                                                                                                                                                                                                        <div class="quantity-control">
+                                                                                                                                                                                                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                                                                                                                                                                                data-action="decrease" data-id="${item.variant_id}"
+                                                                                                                                                                                                                aria-label="Kurangi jumlah">−</button>
+                                                                                                                                                                                                            <span class="quantity-value">${item.quantity}</span>
+                                                                                                                                                                                                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                                                                                                                                                                                data-action="increase" data-id="${item.variant_id}"
+                                                                                                                                                                                                                aria-label="Tambah jumlah">+</button>
+                                                                                                                                                                                                            <button type="button" class="remove-item"
+                                                                                                                                                                                                                data-action="remove" data-id="${item.variant_id}"
+                                                                                                                                                                                                                aria-label="Hapus item">
+                                                                                                                                                                                                                <i class="bi bi-trash"></i>
+                                                                                                                                                                                                            </button>
+                                                                                                                                                                                                        </div>
+                                                                                                                                                                                                    </div>
+                                                                                                                                                                                                </div>`).join('');
                 }
 
                 const totalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-                const cash = Number(cashReceived.value) || 0;
+                const cash = Number(cashReceived.value.replace(/\D/g, '')) || 0;
 
                 changeAmount.textContent = formatRupiah(
                     paymentMethod.value === 'cash' ? Math.max(0, cash - totalAmount) : 0
@@ -1009,7 +1010,6 @@
             }
 
             cashReceived.addEventListener('input', function () {
-                this.value = this.value.replace(/\D/g, '');
                 renderCart();
             });
 
@@ -1038,6 +1038,8 @@
 
                         activeBranchId = newBranchId;
                         cart = [];
+                        if (statusTimer) clearInterval(statusTimer);
+                        statusTimer = null;
                         activeSaleId = null;
                         checkoutMessage.innerHTML = '';
 
@@ -1064,7 +1066,7 @@
 
                 const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
                 const method = paymentMethod.value;
-                const cash = Number(cashReceived.value) || 0;
+                const cash = Number(cashReceived.value.replace(/\D/g, '')) || 0;
 
                 if (method === 'cash' && cash < total) {
                     showMessage('Uang yang diterima kurang dari total pembayaran.');
@@ -1102,25 +1104,22 @@
 
                     if (data.payment_status === 'pending') {
                         activeSaleId = data.sale_id;
-                        showMessage('Transaksi #' + data.sale_id +
-                            ' menunggu konfirmasi pembayaran QRIS.', 'warning');
-
-                        checkoutMessage.innerHTML += `
-                                                                                                                                                                                                <div class="pending-payment mt-2">
-                                                                                                                                                                                                    <strong>Menunggu pembayaran QRIS</strong>
-                                                                                                                                                                                                    Total: ${formatRupiah(data.total_amount)}
-                                                                                                                                                                                                    <p class="mb-0 mt-2">
-                                                                                                                                                                                                        Pastikan pembayaran benar-benar diterima sebelum konfirmasi.
-                                                                                                                                                                                                    </p>
-                                                                                                                                                                                                    <button type="button" id="confirmQrisButton"
-                                                                                                                                                                                                        class="btn btn-success btn-sm w-100">
-                                                                                                                                                                                                        Konfirmasi pembayaran diterima
-                                                                                                                                                                                                    </button>
-                                                                                                                                                                                                </div>`;
-
-                        document.getElementById('confirmQrisButton')
-                            .addEventListener('click', confirmQrisPayment);
-
+                        showMessage('Silakan scan QRIS. Menunggu pembayaran dari Midtrans.', 'warning');
+                        const qr = data.qr_url;
+                        if (typeof qr === 'string' && /^https:\/\//.test(qr)) {
+                            const panel = document.createElement('div');
+                            panel.className = 'border rounded mt-2 p-3 text-center';
+                            const img = document.createElement('img');
+                            img.src = qr;
+                            img.alt = 'QRIS untuk pembayaran transaksi ini';
+                            img.style.cssText = 'max-width:230px;width:100%;height:auto';
+                            panel.appendChild(img);
+                            const note = document.createElement('p');
+                            note.className = 'text-muted small mt-2 mb-0';
+                            panel.appendChild(note);
+                            checkoutMessage.appendChild(panel);
+                        }
+                        startQrisPolling(data.sale_id);
                         return;
                     }
 
@@ -1142,45 +1141,38 @@
                 }
             });
 
-            async function confirmQrisPayment() {
-                if (!activeSaleId) return;
-
-                const button = document.getElementById('confirmQrisButton');
-                if (button) {
-                    button.disabled = true;
-                    button.textContent = 'Mengonfirmasi...';
-                }
-
-                try {
-                    const url = confirmUrlTemplate.replace('__SALE_ID__', activeSaleId);
-
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken
+            function startQrisPolling(saleId) {
+                if (statusTimer) clearInterval(statusTimer);
+                let checking = false;
+                const check = async () => {
+                    if (checking || activeSaleId !== saleId) return;
+                    checking = true;
+                    try {
+                        const url = statusUrlTemplate.replace('__SALE_ID__', saleId);
+                        const response = await fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+                        const data = await readResponse(response);
+                        if (data.payment_status === 'paid' || data.payment_status === 'cancelled') {
+                            clearInterval(statusTimer);
+                            statusTimer = null;
+                            activeSaleId = null;
+                            if (data.payment_status === 'paid') {
+                                showMessage('Pembayaran QRIS berhasil dikonfirmasi Midtrans.', 'success');
+                                cart = [];
+                                cashReceived.value = '';
+                                await loadProducts();
+                            } else {
+                                showMessage('QRIS sudah kedaluwarsa atau dibatalkan di Midtrans.', 'warning');
+                            }
+                            renderCart();
                         }
-                    });
-
-                    const data = await readResponse(response);
-
-                    showMessage('Pembayaran transaksi #' + data.sale_id +
-                        ' dikonfirmasi. Stok produk telah diperbarui.', 'success');
-
-                    activeSaleId = null;
-                    cart = [];
-                    cashReceived.value = '';
-                    await loadProducts();
-                    renderCart();
-                } catch (error) {
-                    showMessage(error.message);
-                    const retryButton = document.getElementById('confirmQrisButton');
-                    if (retryButton) {
-                        retryButton.disabled = false;
-                        retryButton.textContent = 'Coba konfirmasi lagi';
+                    } catch (e) {
+                        // Network error is not payment failure; retry later.
+                    } finally {
+                        checking = false;
                     }
-                }
+                };
+                statusTimer = setInterval(check, 5000);
+                check();
             }
 
             updatePaymentView();

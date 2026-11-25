@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Sale;
+use App\Support\DemoSaleFilter;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
@@ -12,7 +13,7 @@ class SaleHistoryController extends Controller
     {
         $user = auth()->user();
 
-        return Sale::query()
+        return DemoSaleFilter::exclude(Sale::query())
             ->where('tenant_id', $user->tenant_id)
             ->when($user->role?->name !== 'Owner', function ($query) use ($user) {
                 if ($user->branch_id === null) {

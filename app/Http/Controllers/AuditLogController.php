@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Branch;
+use App\Models\Ingredient;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -19,7 +20,7 @@ class AuditLogController extends Controller
             'start_date' => ['nullable', 'date_format:Y-m-d'],
             'end_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:start_date'],
             'action' => ['nullable', Rule::in(['created', 'updated', 'deleted'])],
-            'table' => ['nullable', Rule::in(['sales', 'custom_orders', 'production_orders', 'ingredients', 'products'])],
+            'table' => ['nullable', Rule::in(['sales', 'custom_orders', 'production_orders', 'ingredients', 'ingredient_restocks', 'products'])],
             'branch_id' => ['nullable', 'integer'],
         ]);
 
@@ -45,6 +46,33 @@ class AuditLogController extends Controller
             ->orderByDesc('id')
             ->paginate(20)->withQueryString();
 
-        return view('audit_logs.index', compact('logs', 'branches', 'isOwner', 'branchId'));
+        // Satu query untuk nama bahan di halaman saat ini (tanpa N+1).
+        $ingredientIds = collect($logs->items())->flatMap(function ($log) {
+            $ids = [];
+            if ($log->table_name === 'ingredients') {
+                $ids[] = (int) $log->record_id;
+            }
+            if ($log->table_name === 'ingredient_restocks') {
+                $values = json_decode($log->new_values ?: $log->old_values ?: '{}', true);
+                if (is_array($values) && !empty($values['ingredient_id'])) {
+                    $ids[] = (int) $values['ingredient_id'];
+                }
+            }
+            return $ids;
+        })->unique()->values()->all();
+
+        $ingredientNames = Ingredient::query()
+            ->where('tenant_id', $tenantId)
+            ->whereIn('id', $ingredientIds)
+            ->with('master:id,name,unit')
+            ->get()
+            ->mapWithKeys(fn ($ingredient) => [
+                $ingredient->id => [
+                    'name' => $ingredient->master?->name ?? 'Bahan baku',
+                    'unit' => $ingredient->master?->unit ?? '',
+                ],
+            ])->all();
+
+        return view('audit_logs.index', compact('logs', 'branches', 'isOwner', 'branchId', 'ingredientNames'));
     }
 }

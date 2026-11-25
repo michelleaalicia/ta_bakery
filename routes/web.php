@@ -14,6 +14,7 @@ use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\ProductionOrderController;
 use App\Http\Controllers\JobDescriptionController;
 use App\Http\Controllers\PosController;
+use App\Http\Controllers\MidtransQrisController;
 use App\Http\Controllers\ProductionScheduleController;
 use App\Http\Controllers\CustomOrderController;
 use App\Http\Controllers\CustomOrderPaymentController;
@@ -28,15 +29,20 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DashboardController;
 
+// Notifikasi pembayaran Midtrans.
+Route::post('/webhooks/midtrans/qris', [MidtransQrisController::class, 'notification'])
+    ->name('midtrans.qris.notification');
+
+// Halaman utama sebelum login.
 Route::view('/', 'landing')->name('landing');
 
+// Semua route di bawah ini membutuhkan pengguna yang login dan terverifikasi.
 Route::middleware(['auth', 'verified'])->group(function () {
 
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
 
-    // Manajemen Pengguna
     Route::get('/users/import', [UserController::class, 'import'])
         ->middleware('module:Manajemen Pengguna')
         ->name('users.import');
@@ -60,7 +66,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->except(['show'])
         ->middleware('module:Job Description');
 
-    // Profil
+    // PROFIL
     Route::get('/profile/password', [UserController::class, 'passwordEdit'])
         ->name('profile.password');
 
@@ -73,26 +79,27 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/profile/bakery', [ProfileController::class, 'updateBakery'])
         ->name('profile.bakery.update');
 
-    // Role
+    // ROLE
     Route::resource('roles', RoleController::class)
         ->middleware('module:Manajemen Pengguna');
 
-    // Cabang
+    // CABANG
     Route::resource('branches', BranchController::class)
         ->middleware('module:Cabang');
 
-    // Kategori Produk
+    // KATEGORI PRODUK
     Route::resource('categories', CategoryController::class)
         ->middleware('module:Kategori Produk');
 
-    // Produk
+    // PRODUK
+    Route::post('/products/update-selling-price', [ProductController::class, 'updateSellingPrice'])
+        ->middleware('module:Produk')
+        ->name('products.update-selling-price');
+
     Route::resource('products', ProductController::class)
         ->middleware('module:Produk');
 
-    Route::post(
-        '/products/{product}/variants',
-        [ProductVariantController::class, 'store']
-    )
+    Route::post('/products/{product}/variants', [ProductVariantController::class, 'store'])
         ->middleware('module:Produk')
         ->name('product-variants.store');
 
@@ -108,7 +115,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('module:Produk')
         ->name('product-variants.destroy');
 
-    // Bahan Baku
+    // BAHAN BAKU DAN RESTOCK
     Route::resource('ingredients', IngredientController::class)
         ->middleware('module:Bahan Baku');
 
@@ -120,11 +127,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('module:Bahan Baku')
         ->name('ingredient-restocks.store');
 
-    // Resep
+    // RESEP
     Route::resource('recipes', RecipeController::class)
         ->middleware('module:Resep');
 
-    // Produksi
+    // PRODUK
     Route::put('/production_orders/{productionOrder}/status', [ProductionOrderController::class, 'updateStatus'])
         ->middleware('module:Produksi')
         ->name('production_orders.update-status');
@@ -137,7 +144,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('module:Produksi');
 
     // POS
-
     Route::get('/pos', [PosController::class, 'index'])
         ->middleware('module:POS')
         ->name('pos.index');
@@ -154,6 +160,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('module:POS')
         ->name('pos.checkout');
 
+    Route::get('/pos/{sale}/qris-status', [MidtransQrisController::class, 'status'])
+        ->middleware('module:POS')
+        ->name('pos.qris-status');
+
+    Route::post('/pos/{sale}/midtrans-cancel', [MidtransQrisController::class, 'cancel'])
+        ->middleware('module:POS')
+        ->name('pos.midtrans-cancel');
+
+    Route::post('/pos/{sale}/attach-midtrans-order', [MidtransQrisController::class, 'attachLegacyOrder'])
+        ->middleware('module:POS')
+        ->name('pos.attach-midtrans-order');
+
     Route::post('/pos/{sale}/confirm-payment', [PosController::class, 'confirmPayment'])
         ->middleware('module:POS')
         ->name('pos.confirm-payment');
@@ -162,11 +180,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('module:POS')
         ->name('pos.cancel-payment');
 
-    // Jadwal Produksi
+    // JADWAL PRODUKSI
     Route::get('/production-schedules', [ProductionScheduleController::class, 'index'])
         ->middleware('module:Jadwal Produksi')
         ->name('production_schedules.index');
 
+    // CUSTOM ORDER
     Route::middleware('module:Custom Order')->group(function () {
         Route::get('/custom-orders', [CustomOrderController::class, 'index'])
             ->name('custom_orders.index');
@@ -196,6 +215,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/custom-orders/{customOrder}/confirm', [CustomOrderController::class, 'confirm'])
         ->name('custom_orders.confirm');
 
+    // PEMBAYARAN CUSTOM ORDER
     Route::middleware('module:Pembayaran')->group(function () {
         Route::get('/custom-order-payments', [CustomOrderPaymentController::class, 'index'])
             ->name('custom_order_payments.index');
@@ -206,19 +226,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/custom-order-payments/{customOrder}', [CustomOrderPaymentController::class, 'store'])
             ->name('custom_order_payments.store');
 
-        Route::post(
-            '/custom-orders/{customOrder}/production',
-            [CustomProductionController::class, 'store']
-        )->name('custom_orders.production.store');
+        Route::post('/custom-orders/{customOrder}/production', [CustomProductionController::class, 'store'])
+            ->name('custom_orders.production.store');
 
         Route::get('/custom-order-payments/{customOrder}/receipt/{payment}', [CustomOrderPaymentController::class, 'receipt'])
             ->name('custom_order_payments.receipt');
     });
 
-    Route::put(
-        '/production_orders/{productionOrder}/custom-actuals',
-        [CustomProductionController::class, 'updateActuals']
-    )->name('production_orders.custom-actuals.update');
+    Route::put('/production_orders/{productionOrder}/custom-actuals', [CustomProductionController::class, 'updateActuals'])
+        ->name('production_orders.custom-actuals.update');
 
     Route::get('/production_orders/{productionOrder}/job-cost-sheet', [JobCostSheetController::class, 'show'])
         ->middleware('module:Produksi')
@@ -228,7 +244,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('module:Custom Order')
         ->name('custom_orders.deliver');
 
-
+    // RIWAYAT PENJUALAN
     Route::middleware('module:Riwayat Penjualan')->group(function () {
         Route::get('/sales', [SaleHistoryController::class, 'index'])
             ->name('sales.index');
@@ -240,6 +256,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('sales.receipt');
     });
 
+    // LAPORAN DAN FORECAST
     Route::get('/reports/sales', [SalesReportController::class, 'index'])
         ->middleware('module:Laporan Penjualan')
         ->name('reports.sales');
@@ -252,6 +269,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('module:Forecast')
         ->name('forecasts.index');
 
+    // LOG AKTIVITAS
     Route::get('/audit-logs', [AuditLogController::class, 'index'])
         ->middleware('module:Riwayat Aktivitas')
         ->name('audit_logs.index');

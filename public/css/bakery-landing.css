@@ -1,0 +1,16 @@
+/* Landing - menjaga layout yang sudah ada, mengganti nuansa saja. */
+:root { --ink:#332820; --muted:#827468; --line:#E9DFD6; --bg:#FAF8F5; --soft:#F3E7DA; }
+body { background:var(--bg); color:var(--ink); }
+.site-nav { background:rgba(250,248,245,.96); border-bottom:1px solid var(--line); }
+.site-nav .brand-text { color:#794330; }
+.btn-ink { background:#794330; border-color:#794330; color:#fff; }
+.btn-ink:hover { background:#643725; border-color:#643725; color:#fff; }
+.btn-ghost { border-color:#D7C5B5; color:#794330; }
+.btn-ghost:hover { border-color:#794330; color:#643725; }
+.hero { background:linear-gradient(180deg,#FAF8F5 0%,#F7F0E9 100%); }
+.hero h1 { color:#332820; }
+.hero p { color:#78695D; }
+.features { background:#FFF; border-color:var(--line); }
+.feature-row { border-color:var(--line); }
+.cta { background:#F3E7DA; }
+footer { background:#FAF8F5; }

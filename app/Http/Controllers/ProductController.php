@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use App\Models\ProductVariant;
+use App\Models\ProductionOrder;
 use App\Models\Branch;
 use Illuminate\Support\Facades\Storage;
 
@@ -18,7 +19,74 @@ class ProductController extends Controller
             ->where('tenant_id', auth()->user()->tenant_id)
             ->get();
 
-        return view('products.index', compact('products'));
+        // HPP acuan: produksi reguler selesai terakhir pada setiap varian.
+        $products->load('variants');
+        $variantIds = $products->flatMap(fn($product) => $product->variants->pluck('id'));
+        $lastProductions = ProductionOrder::whereIn('product_variant_id', $variantIds)
+            ->where('order_type', 'regular')
+            ->where('status', 'completed')
+            ->orderByDesc('id')
+            ->get(['id', 'product_variant_id', 'hpp_per_unit'])
+            ->unique('product_variant_id')
+            ->keyBy('product_variant_id');
+
+        $priceProducts = $products->map(function ($product) use ($lastProductions) {
+            return [
+                'id' => $product->id,
+                'name' => $product->name,
+                'variants' => $product->variants->map(function ($variant) use ($lastProductions) {
+                    $last = $lastProductions->get($variant->id);
+                    return [
+                        'id' => $variant->id,
+                        'name' => $variant->name,
+                        'hpp' => $last ? (float) $last->hpp_per_unit : 0,
+                        'has_completed' => (bool) $last,
+                        'price' => (float) $variant->price,
+                    ];
+                })->values()->all(),
+            ];
+        })->values()->all();
+
+        return view('products.index', compact('products', 'priceProducts'));
+    }
+
+    public function updateSellingPrice(Request $request)
+    {
+        if (auth()->user()->role?->name !== 'Owner') {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'product_id' => ['required', 'integer'],
+            'product_variant_id' => ['required', 'integer'],
+            'final_price' => ['required', 'integer', 'min:1', 'max:9999999999999'],
+        ], [
+            'final_price.required' => 'Harga pilihan Owner wajib diisi.',
+            'final_price.integer' => 'Harga jual harus berupa rupiah bulat.',
+            'final_price.min' => 'Harga jual harus lebih dari Rp0.',
+        ]);
+
+        $product = Product::where('tenant_id', auth()->user()->tenant_id)
+            ->findOrFail($data['product_id']);
+
+        $variant = ProductVariant::where('product_id', $product->id)
+            ->findOrFail($data['product_variant_id']);
+
+        // Periksa kembali di server, bukan hanya berdasarkan dropdown browser.
+        $last = ProductionOrder::where('product_variant_id', $variant->id)
+            ->where('order_type', 'regular')
+            ->where('status', 'completed')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$last || (float) $last->hpp_per_unit <= 0) {
+            return back()->with('error', 'Varian belum pernah selesai diproduksi atau HPP belum tersedia. Harga jual tidak diubah.');
+        }
+
+        $variant->update(['price' => $data['final_price']]);
+
+        return redirect()->route('products.index')
+            ->with('success', 'Harga jual varian berhasil diperbarui dan berlaku di seluruh cabang serta POS.');
     }
 
     public function create()

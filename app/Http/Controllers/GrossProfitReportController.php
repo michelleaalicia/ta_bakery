@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Models\CustomOrder;
 use App\Models\Sale;
+use App\Support\DemoSaleFilter;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -48,7 +49,7 @@ class GrossProfitReportController extends Controller
 
         $rows = collect();
         if ($source !== 'custom') {
-            $sales = Sale::with(['branch:id,name', 'details'])
+            $sales = DemoSaleFilter::exclude(Sale::with(['branch:id,name', 'details']))
                 ->where('tenant_id', $tenantId)->where('payment_status', 'paid')
                 ->whereBetween('sale_date', [$startDate, $endDate]);
             if ($branchId !== null) $sales->where('branch_id', $branchId);

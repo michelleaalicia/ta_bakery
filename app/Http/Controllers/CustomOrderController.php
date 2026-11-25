@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\BopInput;
 use App\Models\Branch;
 use App\Models\CustomOrder;
 use App\Models\Ingredient;
@@ -43,17 +44,17 @@ class CustomOrderController extends Controller
 
         $branchIds = $branches->pluck('id');
 
-        $ingredients = Ingredient::where('tenant_id', $user->tenant_id)
+        $ingredients = Ingredient::with('master')->where('tenant_id', $user->tenant_id)
             ->whereIn('branch_id', $branchIds)
             ->whereNotNull('ingredient_master_id')
-            ->orderBy('name')
+            ->orderBy('ingredient_master_id')
             ->get()
             ->map(function ($ingredient) {
                 return [
                     'master_id' => $ingredient->ingredient_master_id,
                     'branch_id' => $ingredient->branch_id,
-                    'name' => $ingredient->name,
-                    'unit' => $ingredient->unit,
+                    'name' => $ingredient->master?->name,
+                    'unit' => $ingredient->master?->unit,
                     'stock' => (float) $ingredient->stock,
                     'unit_cost' => (float) $ingredient->unit_cost,
                 ];
@@ -83,11 +84,11 @@ class CustomOrderController extends Controller
             'product_name' => ['required', 'string', 'max:255'],
             'specification' => ['required', 'string'],
             'quantity' => ['required', 'integer', 'min:1'],
-            'order_date' => ['required', 'date_format:Y-m-d'],
+            'order_date' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
             'required_date' => [
                 'required',
                 'date_format:Y-m-d',
-                'after_or_equal:order_date',
+                'after_or_equal:today',
             ],
             'materials' => ['required', 'array', 'min:1'],
             'materials.*.ingredient_master_id' => ['required', 'integer'],
@@ -113,7 +114,7 @@ class CustomOrderController extends Controller
             ]);
         }
 
-        $ingredients = Ingredient::where('tenant_id', $user->tenant_id)
+        $ingredients = Ingredient::with('master')->where('tenant_id', $user->tenant_id)
             ->where('branch_id', $branch->id)
             ->whereIn('ingredient_master_id', $masterIds)
             ->get();
@@ -162,7 +163,7 @@ class CustomOrderController extends Controller
                 $order->materials()->create([
                     'ingredient_master_id' => $ingredient->ingredient_master_id,
                     'quantity' => $quantity,
-                    'unit' => $ingredient->unit,
+                    'unit' => $ingredient->master?->unit,
                     'estimated_unit_cost' => $unitCost,
                     'estimated_total_cost' => round($quantity * $unitCost, 2),
                 ]);
@@ -199,7 +200,7 @@ class CustomOrderController extends Controller
             ->orderBy('name')
             ->get();
 
-        $ingredients = Ingredient::where('tenant_id', $tenantId)
+        $ingredients = Ingredient::with('master')->where('tenant_id', $tenantId)
             ->whereIn('branch_id', $branches->pluck('id'))
             ->whereNotNull('ingredient_master_id')
             ->orderBy('name')
@@ -208,8 +209,8 @@ class CustomOrderController extends Controller
                 return [
                     'master_id' => $ingredient->ingredient_master_id,
                     'branch_id' => $ingredient->branch_id,
-                    'name' => $ingredient->name,
-                    'unit' => $ingredient->unit,
+                    'name' => $ingredient->master?->name,
+                    'unit' => $ingredient->master?->unit,
                     'stock' => (float) $ingredient->stock,
                     'unit_cost' => (float) $ingredient->unit_cost,
                 ];
@@ -246,11 +247,11 @@ class CustomOrderController extends Controller
             'product_name' => ['required', 'string', 'max:255'],
             'specification' => ['required', 'string'],
             'quantity' => ['required', 'integer', 'min:1'],
-            'order_date' => ['required', 'date_format:Y-m-d'],
+            'order_date' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
             'required_date' => [
                 'required',
                 'date_format:Y-m-d',
-                'after_or_equal:order_date',
+                'after_or_equal:today',
             ],
             'materials' => ['required', 'array', 'min:1'],
             'materials.*.ingredient_master_id' => ['required', 'integer'],
@@ -266,7 +267,7 @@ class CustomOrderController extends Controller
             ]);
         }
 
-        $ingredients = Ingredient::where('tenant_id', $user->tenant_id)
+        $ingredients = Ingredient::with('master')->where('tenant_id', $user->tenant_id)
             ->where('branch_id', $data['branch_id'])
             ->whereIn('ingredient_master_id', $masterIds)
             ->get();
@@ -297,8 +298,10 @@ class CustomOrderController extends Controller
 
             // Jangan pindahkan estimasi tenaga kerja ke cabang lain secara diam-diam.
             // Karyawan yang telah dipilih adalah karyawan cabang semula.
-            if ((int) $order->branch_id !== (int) $data['branch_id']
-                && $order->labors()->exists()) {
+            if (
+                (int) $order->branch_id !== (int) $data['branch_id']
+                && $order->labors()->exists()
+            ) {
                 throw ValidationException::withMessages([
                     'branch_id' => 'Cabang tidak bisa diubah setelah estimasi tenaga kerja diisi. Pertahankan cabang ini agar penugasan karyawan tetap valid.',
                 ]);
@@ -306,7 +309,7 @@ class CustomOrderController extends Controller
 
             // Tandai kebutuhan peninjauan harga, tanpa menghapus harga yang sudah ada.
             $oldMaterials = $order->materials()->get()
-                ->mapWithKeys(fn ($item) => [
+                ->mapWithKeys(fn($item) => [
                     (string) $item->ingredient_master_id => [
                         'quantity' => round((float) $item->quantity, 3),
                         'cost' => round((float) $item->estimated_unit_cost, 2),
@@ -316,10 +319,12 @@ class CustomOrderController extends Controller
             $newMaterials = collect($data['materials'])
                 ->mapWithKeys(function ($item) use ($ingredients) {
                     $ingredient = $ingredients->get($item['ingredient_master_id']);
-                    return [(string) $item['ingredient_master_id'] => [
-                        'quantity' => round((float) $item['quantity'], 3),
-                        'cost' => round((float) $ingredient->unit_cost, 2),
-                    ]];
+                    return [
+                        (string) $item['ingredient_master_id'] => [
+                            'quantity' => round((float) $item['quantity'], 3),
+                            'cost' => round((float) $ingredient->unit_cost, 2),
+                        ]
+                    ];
                 })->sortKeys()->all();
 
             $requiresPriceReview = $oldMaterials !== $newMaterials
@@ -355,7 +360,7 @@ class CustomOrderController extends Controller
                 $order->materials()->create([
                     'ingredient_master_id' => $ingredient->ingredient_master_id,
                     'quantity' => $quantity,
-                    'unit' => $ingredient->unit,
+                    'unit' => $ingredient->master?->unit,
                     'estimated_unit_cost' => $unitCost,
                     'estimated_total_cost' => round($quantity * $unitCost, 2),
                 ]);
@@ -382,6 +387,7 @@ class CustomOrderController extends Controller
             'materials.ingredientMaster',
             'labors.user',
             'payments',
+            'bopDetails',
         ]);
 
         $customOrder->loadMissing(['productionOrder', 'payments']);
@@ -409,7 +415,6 @@ class CustomOrderController extends Controller
         $employees = User::where('tenant_id', $customOrder->tenant_id)
             ->where('branch_id', $customOrder->branch_id)
             ->where('status', 'active')
-            ->whereHas('role', fn($query) => $query->where('name', 'Produksi'))
             ->orderBy('name')
             ->get(['id', 'name', 'wage_rate_per_hour']);
 
@@ -437,6 +442,7 @@ class CustomOrderController extends Controller
         $this->authorizeOrder($customOrder);
         $this->authorizeOwner();
 
+        $bop = BopInput::prepare($request, 'estimated_bop_cost');
         $data = $request->validate([
             'labors' => ['required', 'array', 'min:1'],
             // Satu karyawan boleh mengerjakan beberapa pekerjaan.
@@ -472,7 +478,7 @@ class CustomOrderController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($customOrder, $data) {
+        DB::transaction(function () use ($customOrder, $data, $bop) {
             $order = CustomOrder::whereKey($customOrder->id)
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -491,7 +497,6 @@ class CustomOrderController extends Controller
             $users = User::where('tenant_id', $order->tenant_id)
                 ->where('branch_id', $order->branch_id)
                 ->where('status', 'active')
-                ->whereHas('role', fn($query) => $query->where('name', 'Produksi'))
                 ->whereIn('id', $userIds)
                 ->get()
                 ->keyBy('id');
@@ -554,6 +559,7 @@ class CustomOrderController extends Controller
                 'estimated_bop_cost' => $data['estimated_bop_cost'],
                 'selling_price' => null,
             ]);
+            BopInput::save('custom_order_id', $order->id, $bop);
         });
 
         return back()->with(

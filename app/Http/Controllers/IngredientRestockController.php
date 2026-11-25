@@ -20,11 +20,10 @@ class IngredientRestockController extends Controller
             ->orderBy('name')
             ->get();
 
-        $ingredients = Ingredient::where('tenant_id', $tenantId)
+        $ingredients = Ingredient::with('master')->where('tenant_id', $tenantId)
             ->whereNotNull('branch_id')
             ->when(auth()->user()->role?->name !== 'Owner', fn ($q) => $q->where('branch_id', auth()->user()->branch_id))
-            ->orderBy('name')
-            ->get();
+            ->get()->sortBy(fn ($ingredient) => $ingredient->master?->name)->values();
 
         return view('ingredient_restocks.create', compact(
             'branches',
@@ -46,7 +45,6 @@ class IngredientRestockController extends Controller
             'restock_date' => [
                 'required',
                 'date_format:Y-m-d',
-                'after_or_equal:' . now()->subDay()->toDateString(),
                 'before_or_equal:' . now()->toDateString(),
             ],
         ]);

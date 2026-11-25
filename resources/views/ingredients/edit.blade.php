@@ -48,7 +48,7 @@
                 <div class="mb-3">
                     <label class="form-label">Nama Bahan</label>
 
-                    <input type="text" name="name" value="{{ old('name', $ingredient->name) }}" class="form-control"
+                    <input type="text" name="name" value="{{ old('name', $ingredient->master?->name) }}" class="form-control"
                         required>
                 </div>
 
@@ -57,7 +57,7 @@
                 <div class="mb-3">
                     <label class="form-label">Satuan</label>
 
-                    <input type="text" name="unit" value="{{ old('unit', $ingredient->unit) }}" class="form-control"
+                    <input type="text" name="unit" value="{{ old('unit', $ingredient->master?->unit) }}" class="form-control"
                         required>
                 </div>
 
@@ -79,7 +79,7 @@
                 <div class="mb-3">
                     <label class="form-label">Stok Saat Ini</label>
 
-                    <input type="text" value="{{ $ingredient->stock }} {{ $ingredient->unit }}" class="form-control"
+                    <input type="text" value="{{ $ingredient->stock }} {{ $ingredient->master?->unit }}" class="form-control"
                         disabled>
 
                     <small class="text-muted">

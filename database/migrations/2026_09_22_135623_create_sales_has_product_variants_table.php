@@ -15,6 +15,7 @@ return new class extends Migration {
             $table->foreignId('product_variant_id')->constrained('product_variants');
             $table->decimal('quantity', 10, 2);
             $table->decimal('unit_price', 15, 2);
+            $table->decimal('unit_cost', 15, 2)->nullable();
 
             $table->primary(['sale_id', 'product_variant_id']);
         });

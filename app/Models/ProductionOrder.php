@@ -21,6 +21,11 @@ class ProductionOrder extends Model
         'notes',
     ];
 
+    public function bopDetails()
+    {
+        return $this->hasMany(\App\Models\BopDetail::class);
+    }
+
     public function productVariant()
     {
         return $this->belongsTo(ProductVariant::class);

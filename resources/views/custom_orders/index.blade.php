@@ -75,14 +75,7 @@
                                                 </td>
 
                                                 <td>
-                                                    <span class="badge bg-secondary">
-                                                        {{ match ($order->status) {
-                                'draft' => 'Draft',
-                                'confirmed' => 'Dikonfirmasi',
-                                'delivered' => 'Diserahkan',
-                                default => ucfirst($order->status),
-                            } }}
-                                                    </span>
+                                                    <x-status-badge :status="$order->status" type="custom" />
                                                 </td>
 
                                                 <td>

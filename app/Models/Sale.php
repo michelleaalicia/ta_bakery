@@ -17,6 +17,9 @@ class Sale extends Model
         'payment_status',
         'cash_received',
         'change_amount',
+        'midtrans_order_id',
+        'midtrans_transaction_id',
+        'midtrans_qr_url',
     ];
 
     protected $casts = [

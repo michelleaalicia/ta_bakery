@@ -13,7 +13,7 @@ class IngredientController extends Controller
 {
     public function index()
     {
-        $ingredients = Ingredient::with('branch')
+        $ingredients = Ingredient::with(['branch', 'master'])
             ->where('tenant_id', auth()->user()->tenant_id)
             ->when(auth()->user()->role?->name !== 'Owner', fn ($q) => $q->where('branch_id', auth()->user()->branch_id))
             ->get();
@@ -69,8 +69,6 @@ class IngredientController extends Controller
             'ingredient_master_id' => $master->id,
             'tenant_id' => $tenantId,
             'branch_id' => $branchId,
-            'name' => trim($request->name),
-            'unit' => $request->unit,
             'unit_cost' => 0,
             'stock' => 0,
             'min_stock' => $request->min_stock,
@@ -90,6 +88,8 @@ class IngredientController extends Controller
             'tenant_id',
             auth()->user()->tenant_id
         )->when(auth()->user()->role?->name !== 'Owner', fn ($q) => $q->whereKey(auth()->user()->branch_id))->get();
+
+        $ingredient->load('master');
 
         return view('ingredients.edit', compact('ingredient', 'branches'));
     }
@@ -125,8 +125,8 @@ class IngredientController extends Controller
 
         $masterUsed = Ingredient::where('ingredient_master_id', $ingredient->ingredient_master_id)
             ->whereHas('recipes')->exists();
-        if ($masterUsed && ($ingredient->name !== trim($request->name)
-            || $ingredient->unit !== $request->unit)) {
+        if ($masterUsed && ($ingredient->master?->name !== trim($request->name)
+            || $ingredient->master?->unit !== $request->unit)) {
             throw ValidationException::withMessages([
                 'name' => 'Nama dan satuan bahan standar yang sudah digunakan resep tidak boleh diubah.',
             ]);
@@ -139,18 +139,19 @@ class IngredientController extends Controller
             ]);
         }
         $this->ensureNoDuplicate($tenantId, $branchId, $request->name, $request->unit, $ingredient->id);
-        $master = IngredientMaster::firstOrCreate([
-            'tenant_id' => $tenantId,
-            'name' => trim($request->name),
-            'unit' => $request->unit,
-        ]);
-        $ingredient->update([
-            'ingredient_master_id' => $master->id,
-            'branch_id' => $branchId,
-            'name' => trim($request->name),
-            'unit' => $request->unit,
-            'min_stock' => $request->min_stock,
-        ]);
+        DB::transaction(function () use ($tenantId, $branchId, $request, $ingredient) {
+            $master = IngredientMaster::firstOrCreate([
+                'tenant_id' => $tenantId,
+                'name' => trim($request->name),
+                'unit' => $request->unit,
+            ]);
+
+            $ingredient->update([
+                'ingredient_master_id' => $master->id,
+                'branch_id' => $branchId,
+                'min_stock' => $request->min_stock,
+            ]);
+        });
 
         return redirect()
             ->route('ingredients.index')
@@ -201,7 +202,9 @@ class IngredientController extends Controller
     private function ensureNoDuplicate($tenantId, $branchId, $name, $unit, $exceptId = null): void
     {
         $query = Ingredient::where('tenant_id', $tenantId)
-            ->where('name', trim($name))->where('unit', $unit);
+            ->whereHas('master', function ($q) use ($name, $unit) {
+                $q->where('name', trim($name))->where('unit', $unit);
+            });
         $branchId === null ? $query->whereNull('branch_id') : $query->where('branch_id', $branchId);
         if ($exceptId !== null) $query->where('id', '!=', $exceptId);
         if ($query->exists()) {

@@ -78,7 +78,7 @@ class RecipeController extends Controller
     {
         $this->checkTenant($recipe);
 
-        $recipe->load('ingredients');
+        $recipe->load('ingredients.master');
 
         $variants = ProductVariant::with('product')
             ->whereHas('product', function ($query) {
@@ -141,7 +141,6 @@ class RecipeController extends Controller
                 'steps' => $data['steps'],
             ]);
 
-            $recipe->ingredients()->detach();
             $this->attachIngredients($recipe, $data['ingredients']);
         });
 
@@ -166,7 +165,7 @@ class RecipeController extends Controller
     private function masterIngredients()
     {
         // Pilih satu contoh record per master untuk menghindari duplikasi pilihan.
-        return Ingredient::where('tenant_id', auth()->user()->tenant_id)
+        return Ingredient::with('master')->where('tenant_id', auth()->user()->tenant_id)
             ->whereNotNull('ingredient_master_id')
             ->orderBy('id')->get()->unique('ingredient_master_id')->values();
     }
@@ -205,14 +204,22 @@ class RecipeController extends Controller
 
     private function attachIngredients(Recipe $recipe, array $items): void
     {
+        $ids = collect($items)->pluck('ingredient_id');
+        $ingredients = Ingredient::with('master')->where('tenant_id', auth()->user()->tenant_id)
+            ->whereIn('id', $ids)
+            ->get()
+            ->keyBy('id');
+
+        $data = [];
         foreach ($items as $item) {
-            $ingredient = Ingredient::where('tenant_id', auth()->user()->tenant_id)
-                ->findOrFail($item['ingredient_id']);
-            $recipe->ingredients()->attach($ingredient->id, [
+            $ingredient = $ingredients->get($item['ingredient_id']);
+            $data[$ingredient->id] = [
                 'quantity' => $item['quantity'],
-                'unit' => $ingredient->unit,
-            ]);
+                'unit' => $ingredient->master?->unit,
+            ];
         }
+
+        $recipe->ingredients()->sync($data);
     }
 
     private function checkTenant(Recipe $recipe)

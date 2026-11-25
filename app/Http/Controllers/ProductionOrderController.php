@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
+use App\Support\BopInput;
 use App\Models\Ingredient;
 use App\Models\Product;
 use App\Models\Branch;
@@ -49,13 +50,71 @@ class ProductionOrderController extends Controller
         return view('production_orders.index', compact('productionOrders'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        return view('production_orders.create', $this->formData());
+        $formData = $this->formData();
+        $forecastPrefill = null;
+
+        // Hanya prefill; tidak membuat produksi atau mengurangi stok.
+        // Semua parameter URL divalidasi, termasuk tenant dan cabang.
+        if ($request->query('from_forecast') === '1') {
+            $data = $request->validate([
+                'product_variant_id' => ['required', 'integer', 'min:1'],
+                'branch_id' => ['nullable', 'integer', 'min:1'],
+                'recommended_qty' => ['required', 'integer', 'min:1', 'max:1000000'],
+            ]);
+
+            $variant = ProductVariant::with(['product', 'recipe'])
+                ->whereKey($data['product_variant_id'])
+                ->whereHas('product', fn ($q) => $q
+                    ->where('tenant_id', $this->tenantId())
+                    ->where('status', 'active'))
+                ->where('status', 'active')
+                ->firstOrFail();
+
+            if (!$variant->recipe || (float) $variant->recipe->quantity <= 0) {
+                return redirect()->route('production_orders.create')
+                    ->with('error', 'Varian rekomendasi belum memiliki resep dengan hasil produksi yang valid.');
+            }
+
+            $hasBranches = $formData['branches']->isNotEmpty();
+            $selectedBranchId = $data['branch_id'] ?? null;
+
+            if ($hasBranches) {
+                if ($selectedBranchId === null || !$formData['branches']->contains('id', (int) $selectedBranchId)) {
+                    abort(403, 'Cabang rekomendasi tidak valid.');
+                }
+            } elseif ($selectedBranchId !== null) {
+                abort(403, 'Bakery ini tidak memiliki cabang.');
+            }
+
+            if (!$this->isOwner()) {
+                abort_if(auth()->user()->branch_id === null, 403, 'Akun belum terhubung ke cabang.');
+                abort_unless((int) $selectedBranchId === (int) auth()->user()->branch_id, 403);
+            }
+
+            $yield = (float) $variant->recipe->quantity;
+            $recommended = (int) $data['recommended_qty'];
+            $batchCount = (int) ceil($recommended / $yield);
+
+            $forecastPrefill = [
+                'branch_id' => $selectedBranchId,
+                'product_id' => (int) $variant->product_id,
+                'variant_id' => (int) $variant->id,
+                'recommended_qty' => $recommended,
+                'recipe_yield' => $yield,
+                'batch_count' => $batchCount,
+                'target_qty' => $batchCount * $yield,
+                'production_date' => now()->addDay()->toDateString(),
+            ];
+        }
+
+        return view('production_orders.create', array_merge($formData, compact('forecastPrefill')));
     }
 
     public function store(Request $request)
     {
+        $bop = BopInput::prepare($request);
         $data = $this->validateRequest($request);
 
         $variant = $this->findVariant($data['product_variant_id']);
@@ -87,7 +146,7 @@ class ProductionOrderController extends Controller
             $ingredients
         );
 
-        DB::transaction(function () use ($data, $variant, $branch, $users, $ingredients, $costs) {
+        DB::transaction(function () use ($data, $variant, $branch, $users, $ingredients, $costs, $bop) {
             $productionOrder = ProductionOrder::create([
                 'product_variant_id' => $variant->id,
                 'branch_id' => $branch?->id,
@@ -97,9 +156,11 @@ class ProductionOrderController extends Controller
                 'production_date' => $data['production_date'],
                 'status' => 'planned',
                 'bop_cost' => $data['bop_cost'],
-                'hpp_per_unit' => $costs['hppPerUnit'],
+                'hpp_per_unit' => 0, // HPP final dihitung saat produksi selesai
                 'notes' => $data['notes'] ?? null,
             ]);
+
+            BopInput::save('production_order_id', $productionOrder->id, $bop);
 
             $this->syncIngredients(
                 $productionOrder,
@@ -127,7 +188,8 @@ class ProductionOrderController extends Controller
             'productVariant.product',
             'productVariant.recipe',
             'branch',
-            'ingredients',
+            'ingredients.master',
+            'bopDetails',
             'users',
         ]);
 
@@ -165,11 +227,11 @@ class ProductionOrderController extends Controller
             $custom = $productionOrder->customOrder;
             if ($custom) {
                 $custom->load(['materials', 'labors']);
-                $availableCustomIngredients = Ingredient::where('tenant_id', $custom->tenant_id)
+                $availableCustomIngredients = Ingredient::with('master')->where('tenant_id', $custom->tenant_id)
                     ->where('branch_id', $productionOrder->branch_id)
                     ->whereNotNull('ingredient_master_id')
                     ->whereNotIn('id', $productionOrder->ingredients->pluck('id'))
-                    ->orderBy('name')->get(['id', 'name', 'unit', 'stock']);
+                    ->get(['id', 'ingredient_master_id', 'stock'])->sortBy(fn($i) => $i->master?->name)->values();
 
                 $availableCustomEmployees = User::where('tenant_id', $custom->tenant_id)
                     ->where('branch_id', $productionOrder->branch_id)
@@ -181,7 +243,7 @@ class ProductionOrderController extends Controller
                 $availableCustomJobs = JobDescription::where('tenant_id', $custom->tenant_id)
                     ->orderBy('name')->pluck('name');
 
-                $customMaterialOptions = $availableCustomIngredients->map(fn($i) => ['id' => $i->id, 'name' => $i->name, 'unit' => $i->unit])->values()->all();
+                $customMaterialOptions = $availableCustomIngredients->map(fn($i) => ['id' => $i->id, 'name' => $i->master?->name, 'unit' => $i->master?->unit])->values()->all();
                 $customEmployeeOptions = $availableCustomEmployees->map(fn($u) => ['id' => $u->id, 'name' => $u->name])->values()->all();
                 $customJobOptions = $availableCustomJobs->values()->all();
 
@@ -211,10 +273,49 @@ class ProductionOrderController extends Controller
     {
         $this->authorizeTenant($productionOrder);
 
+        if ($productionOrder->order_type !== 'regular') {
+            abort(403);
+        }
+
+        if ($productionOrder->status === 'in_progress') {
+            $productionOrder->load(['ingredients.master', 'users', 'productVariant.product']);
+            $availableIngredients = Ingredient::with('master')
+                ->where('tenant_id', $this->tenantId())
+                ->when(
+                    $productionOrder->branch_id,
+                    fn($q) => $q->where('branch_id', $productionOrder->branch_id),
+                    fn($q) => $q->whereNull('branch_id')
+                )
+                ->whereNotNull('ingredient_master_id')
+                ->get()->sortBy(fn($item) => $item->master?->name)->values();
+
+            $actualIngredientOptions = $availableIngredients->map(fn($item) => [
+                'id' => $item->id,
+                'name' => ($item->master?->name ?? 'Bahan') . ' (' . ($item->master?->unit ?? '-') . ')',
+            ])->values();
+
+            $formData = $this->formData();
+            $actualEmployeeOptions = $formData['users']
+                ->filter(fn($employee) => $employee->branch_id == $productionOrder->branch_id)
+                ->map(fn($employee) => ['id' => $employee->id, 'name' => $employee->name])
+                ->values();
+            $actualJobOptions = $formData['jobDescriptions']->pluck('name')->values();
+
+            return view('production_orders.edit_actual', array_merge(
+                compact(
+                    'productionOrder',
+                    'availableIngredients',
+                    'actualIngredientOptions',
+                    'actualEmployeeOptions',
+                    'actualJobOptions'
+                ),
+                $formData
+            ));
+        }
+
         if ($productionOrder->status !== 'planned') {
-            return redirect()
-                ->route('production_orders.show', $productionOrder)
-                ->with('error', 'Hanya produksi berstatus direncanakan yang dapat diubah.');
+            return redirect()->route('production_orders.show', $productionOrder)
+                ->with('error', 'Produksi yang sudah selesai tidak dapat diubah.');
         }
 
         $productionOrder->load([
@@ -235,12 +336,20 @@ class ProductionOrderController extends Controller
     ) {
         $this->authorizeTenant($productionOrder);
 
-        if ($productionOrder->status !== 'planned') {
-            return redirect()
-                ->route('production_orders.show', $productionOrder)
-                ->with('error', 'Hanya produksi berstatus direncanakan yang dapat diubah.');
+        if ($productionOrder->order_type !== 'regular') {
+            abort(403);
         }
 
+        if ($productionOrder->status === 'in_progress') {
+            return $this->updateRegularActuals($request, $productionOrder);
+        }
+
+        if ($productionOrder->status !== 'planned') {
+            return redirect()->route('production_orders.show', $productionOrder)
+                ->with('error', 'Produksi yang sudah selesai tidak dapat diubah.');
+        }
+
+        $bop = BopInput::prepare($request);
         $data = $this->validateRequest($request);
 
         $variant = $this->findVariant($data['product_variant_id']);
@@ -273,7 +382,7 @@ class ProductionOrderController extends Controller
             $ingredients
         );
 
-        DB::transaction(function () use ($productionOrder, $data, $variant, $branch, $recipe, $users, $ingredients, $costs) {
+        DB::transaction(function () use ($productionOrder, $data, $variant, $branch, $recipe, $users, $ingredients, $costs, $bop) {
             $productionOrder->update([
                 'product_variant_id' => $variant->id,
                 'branch_id' => $branch?->id,
@@ -281,9 +390,11 @@ class ProductionOrderController extends Controller
                 'quantity' => $data['quantity'],
                 'production_date' => $data['production_date'],
                 'bop_cost' => $data['bop_cost'],
-                'hpp_per_unit' => $costs['hppPerUnit'],
+                'hpp_per_unit' => 0, // HPP final dihitung saat produksi selesai
                 'notes' => $data['notes'] ?? null,
             ]);
+
+            BopInput::save('production_order_id', $productionOrder->id, $bop);
 
             // Hapus data lama
 
@@ -306,6 +417,100 @@ class ProductionOrderController extends Controller
         return redirect()
             ->route('production_orders.show', $productionOrder)
             ->with('success', 'Produksi berhasil diperbarui.');
+    }
+
+    // Perubahan biaya aktual hanya untuk produksi reguler yang masih berlangsung.
+    private function updateRegularActuals(Request $request, ProductionOrder $productionOrder)
+    {
+        $bop = BopInput::prepare($request);
+        $data = $request->validate([
+            'materials' => ['required', 'array', 'min:1'],
+            'materials.*.ingredient_id' => ['required', 'integer', 'distinct'],
+            'materials.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'employees' => ['required', 'array', 'min:1'],
+            'employees.*.user_id' => ['required', 'integer', 'distinct'],
+            'employees.*.job_description' => [
+                'required',
+                'string',
+                Rule::exists('job_descriptions', 'name')->where('tenant_id', $this->tenantId()),
+            ],
+            'employees.*.labor_hours' => ['required', 'numeric', 'gt:0'],
+            'bop_cost' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $materialIds = collect($data['materials'])->pluck('ingredient_id');
+        $employeeIds = collect($data['employees'])->pluck('user_id');
+
+        $ingredientQuery = Ingredient::where('tenant_id', $this->tenantId())
+            ->whereIn('id', $materialIds)->whereNotNull('ingredient_master_id');
+        $employeeQuery = User::where('tenant_id', $this->tenantId())
+            ->where('status', 'active')->whereIn('id', $employeeIds);
+        if ($productionOrder->branch_id) {
+            $ingredientQuery->where('branch_id', $productionOrder->branch_id);
+            $employeeQuery->where('branch_id', $productionOrder->branch_id);
+        } else {
+            $ingredientQuery->whereNull('branch_id');
+            $employeeQuery->whereNull('branch_id');
+        }
+
+        $ingredients = $ingredientQuery->get()->keyBy('id');
+        $employees = $employeeQuery->get()->keyBy('id');
+
+        if ($ingredients->count() !== $materialIds->count()) {
+            throw ValidationException::withMessages([
+                'materials' => 'Ada bahan yang tidak tersedia di cabang produksi.',
+            ]);
+        }
+        if ($employees->count() !== $employeeIds->count()) {
+            throw ValidationException::withMessages([
+                'employees' => 'Ada karyawan yang tidak aktif atau tidak sesuai cabang.',
+            ]);
+        }
+        foreach ($employees as $employee) {
+            if ($employee->wage_rate_per_hour === null || (float) $employee->wage_rate_per_hour <= 0) {
+                throw ValidationException::withMessages([
+                    'employees' => 'Upah per jam ' . $employee->name . ' belum valid.',
+                ]);
+            }
+        }
+
+        DB::transaction(function () use ($productionOrder, $data, $ingredients, $employees, $bop) {
+            $order = ProductionOrder::whereKey($productionOrder->id)
+                ->lockForUpdate()->firstOrFail();
+            if ($order->order_type !== 'regular' || $order->status !== 'in_progress') {
+                throw ValidationException::withMessages([
+                    'materials' => 'Produksi sudah tidak dalam status berlangsung.',
+                ]);
+            }
+
+            $materialPivot = [];
+            foreach ($data['materials'] as $material) {
+                $ingredient = $ingredients->get($material['ingredient_id']);
+                $materialPivot[$ingredient->id] = [
+                    'quantity_used' => $material['quantity'],
+                    'unit_cost_used' => $ingredient->unit_cost,
+                ];
+            }
+
+            $employeePivot = [];
+            foreach ($data['employees'] as $item) {
+                $employee = $employees->get($item['user_id']);
+                $employeePivot[$employee->id] = [
+                    'job_description' => $item['job_description'],
+                    'status' => 'assigned',
+                    'labor_hours' => $item['labor_hours'],
+                    'labor_rate_per_hour' => $employee->wage_rate_per_hour,
+                ];
+            }
+
+            $order->ingredients()->sync($materialPivot);
+            $order->users()->sync($employeePivot);
+            $order->update(['bop_cost' => $data['bop_cost'], 'hpp_per_unit' => 0]);
+            BopInput::save('production_order_id', $order->id, $bop);
+        });
+
+        return redirect()->route('production_orders.show', $productionOrder)
+            ->with('success', 'Pemakaian bahan, tenaga kerja, dan BOP berhasil diperbarui.');
     }
 
     public function updateStatus(
@@ -364,7 +569,10 @@ class ProductionOrderController extends Controller
                     );
                 }
 
-                $order->load(['ingredients', 'users', 'productVariant']);
+                $order->load(['ingredients.master', 'users', 'productVariant']);
+                if ($order->ingredients->isEmpty() || $order->users->isEmpty()) {
+                    throw new \RuntimeException('Lengkapi bahan dan karyawan sebelum menyelesaikan produksi.');
+                }
 
                 // Periksa semua stok bahan sebelum mengurangi stok.
                 foreach ($order->ingredients as $ingredient) {
@@ -375,7 +583,7 @@ class ProductionOrderController extends Controller
 
                     if ($lockedIngredient->stock < $ingredient->pivot->quantity_used) {
                         throw new \RuntimeException(
-                            'Stok ' . $ingredient->name . ' tidak mencukupi.'
+                            'Stok ' . ($ingredient->master?->name) . ' tidak mencukupi.'
                         );
                     }
                 }
@@ -995,7 +1203,7 @@ class ProductionOrderController extends Controller
 
                     if ((float) $lockedIngredient->stock < $quantity) {
                         throw new \RuntimeException(
-                            'Stok ' . $lockedIngredient->name . ' tidak mencukupi.'
+                            'Stok ' . ($lockedIngredient->master?->name ?? 'Bahan baku') . ' tidak mencukupi.'
                         );
                     }
 

@@ -83,7 +83,7 @@
                     <tbody>
                         @foreach ($recipe->ingredients as $ingredient)
                             <tr>
-                                <td>{{ $ingredient->name }}</td>
+                                <td>{{ ($ingredient->master?->name) }}</td>
 
                                 <td>
                                     {{ rtrim(rtrim(number_format($ingredient->pivot->quantity, 2, ',', '.'), '0'), ',') }}

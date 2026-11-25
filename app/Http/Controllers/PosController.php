@@ -10,6 +10,7 @@ use App\Models\Sale;
 use App\Models\SaleHasProductVariant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\MidtransQrisService;
 use Illuminate\Validation\ValidationException;
 
 class PosController extends Controller
@@ -63,7 +64,6 @@ class PosController extends Controller
 
         return $branch;
     }
-
 
     public function index()
     {
@@ -191,7 +191,7 @@ class PosController extends Controller
     }
 
 
-    public function checkout(Request $request)
+    public function checkout(Request $request, MidtransQrisService $gateway)
     {
         $data = $request->validate([
             'branch_id' => ['nullable', 'integer'],
@@ -209,6 +209,12 @@ class PosController extends Controller
                 'gt:0',
             ],
         ]);
+
+        if ($data['payment_method'] === 'qris' && !config('services.midtrans.server_key')) {
+            throw ValidationException::withMessages([
+                'payment' => 'Midtrans belum dikonfigurasi. Hubungi administrator.',
+            ]);
+        }
 
         $branch = $this->resolveBranch(
             $data['branch_id'] ?? null
@@ -278,6 +284,10 @@ class PosController extends Controller
 
             $totalAmount = round($totalAmount, 2);
 
+            if ($data['payment_method'] === 'qris' && ($totalAmount < 1 || abs($totalAmount - round($totalAmount)) > 0.001)) {
+                throw ValidationException::withMessages(['payment' => 'Nominal QRIS harus dalam rupiah bulat dan minimal Rp 1.']);
+            }
+
             $cashReceived = null;
             $changeAmount = 0;
             $paymentStatus = 'pending';
@@ -329,7 +339,29 @@ class PosController extends Controller
             return $sale;
         });
 
+        if ($sale->payment_method === 'qris') {
+            // Midtrans dipanggil setelah transaksi lokal tersimpan, bukan selama DB lock.
+            $orderId = 'SIMB-' . $sale->id . '-' . bin2hex(random_bytes(6));
+            $sale->update(['midtrans_order_id' => $orderId]);
+            try {
+                $charge = $gateway->charge($orderId, (int) round($sale->total_amount));
+                $sale->update([
+                    'midtrans_transaction_id' => $charge['transaction_id'],
+                    'midtrans_qr_url' => $charge['qr_url'],
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+                // Jangan tandai paid ketika gateway gagal. Jika respons gateway ambigu,
+                // cek dashboard Midtrans sebelum mengulang pembayaran.
+                return response()->json([
+                    'message' => 'QRIS gagal dibuat. Transaksi tercatat pending; periksa dashboard Midtrans sebelum mencoba ulang.',
+                    'sale_id' => $sale->id,
+                ], 502);
+            }
+        }
+
         return response()->json([
+            'qr_url' => $sale->midtrans_qr_url,
             'message' => $sale->payment_status === 'paid'
                 ? 'Transaksi berhasil disimpan.'
                 : 'Transaksi QRIS dibuat dan menunggu konfirmasi pembayaran.',
@@ -344,75 +376,13 @@ class PosController extends Controller
 
 
 
+    // Manual confirmation intentionally disabled: QRIS is settled only by Midtrans.
     public function confirmPayment(Sale $sale)
     {
-        if ((int) $sale->tenant_id !== (int) $this->tenantId()) {
-            abort(404);
-        }
-
-        if (
-            !$this->isOwner() &&
-            (int) $sale->branch_id !== (int) auth()->user()->branch_id
-        ) {
-            abort(403);
-        }
-
-        try {
-            DB::transaction(function () use ($sale) {
-                $lockedSale = Sale::whereKey($sale->id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                if ((int) $lockedSale->tenant_id !== (int) $this->tenantId()) {
-                    abort(404);
-                }
-
-                if (
-                    !$this->isOwner() &&
-                    (int) $lockedSale->branch_id !== (int) auth()->user()->branch_id
-                ) {
-                    abort(403);
-                }
-
-                if ($lockedSale->payment_method !== 'qris') {
-                    throw ValidationException::withMessages([
-                        'payment' => 'Konfirmasi ini hanya untuk pembayaran QRIS.',
-                    ]);
-                }
-
-                if ($lockedSale->payment_status !== 'pending') {
-                    throw ValidationException::withMessages([
-                        'payment' => 'Transaksi sudah diproses sebelumnya.',
-                    ]);
-                }
-
-                $this->deductSaleStock($lockedSale);
-
-                $lockedSale->update([
-                    'payment_status' => 'paid',
-                ]);
-            });
-        } catch (ValidationException $e) {
-            throw $e;
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e) {
-            throw $e;
-        } catch (\Throwable $e) {
-            report($e);
-
-            return response()->json([
-                'message' => 'Konfirmasi pembayaran gagal. Silakan periksa stok dan coba kembali.',
-            ], 422);
-        }
-
-        return response()->json([
-            'message' => 'Pembayaran QRIS berhasil dikonfirmasi.',
-            'sale_id' => $sale->id,
-            'payment_status' => 'paid',
-        ]);
+        return response()->json(['message' => 'QRIS hanya dapat dikonfirmasi melalui Midtrans.'], 403);
     }
 
-
-    private function deductSaleStock(Sale $sale): void
+    public function deductSaleStock(Sale $sale): void
     {
         $details = SaleHasProductVariant::where('sale_id', $sale->id)
             ->orderBy('product_variant_id')
@@ -510,53 +480,9 @@ class PosController extends Controller
         }
     }
 
+    // Do not cancel local transactions without first cancelling at Midtrans.
     public function cancelPayment(Sale $sale)
     {
-        if ((int) $sale->tenant_id !== (int) $this->tenantId()) {
-            abort(404);
-        }
-
-        if (
-            !$this->isOwner() &&
-            (int) $sale->branch_id !== (int) auth()->user()->branch_id
-        ) {
-            abort(403);
-        }
-
-        DB::transaction(function () use ($sale) {
-            $lockedSale = Sale::whereKey($sale->id)
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            if ((int) $lockedSale->tenant_id !== (int) $this->tenantId()) {
-                abort(404);
-            }
-
-            if (
-                !$this->isOwner() &&
-                (int) $lockedSale->branch_id !== (int) auth()->user()->branch_id
-            ) {
-                abort(403);
-            }
-
-            if (
-                $lockedSale->payment_method !== 'qris' ||
-                $lockedSale->payment_status !== 'pending'
-            ) {
-                throw ValidationException::withMessages([
-                    'payment' => 'Hanya pembayaran QRIS pending yang dapat dibatalkan.',
-                ]);
-            }
-
-            $lockedSale->update([
-                'payment_status' => 'cancelled',
-            ]);
-        });
-
-        return response()->json([
-            'message' => 'Transaksi QRIS berhasil dibatalkan.',
-            'sale_id' => $sale->id,
-            'payment_status' => 'cancelled',
-        ]);
+        return response()->json(['message' => 'Pembatalan QRIS hanya dapat disinkronkan dari status Midtrans.'], 403);
     }
 }

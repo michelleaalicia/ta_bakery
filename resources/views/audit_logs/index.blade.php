@@ -36,7 +36,7 @@
                     <label for="auditModule" class="form-label">Modul</label>
                     <select id="auditModule" name="table" class="form-select">
                         <option value="">Semua Modul</option>
-                        @foreach (['sales' => 'POS', 'custom_orders' => 'Custom Order', 'production_orders' => 'Produksi', 'ingredients' => 'Bahan Baku', 'products' => 'Produk'] as $key => $label)
+                        @foreach (['sales' => 'POS', 'custom_orders' => 'Custom Order', 'production_orders' => 'Produksi', 'ingredients' => 'Bahan Baku', 'ingredient_restocks' => 'Restock Bahan', 'products' => 'Produk'] as $key => $label)
                             <option value="{{ $key }}" @selected(request('table') === $key)>{{ $label }}</option>
                         @endforeach
                     </select>
@@ -82,7 +82,8 @@
                         <col style="width: 13%">
                         <col style="width: 13%">
                         <col style="width: 13%">
-                        <col style="width: 24%">
+                        <col style="width: 19%">
+                        <col style="width: 8%">
                     </colgroup>
                     <thead>
                         <tr>
@@ -93,6 +94,7 @@
                             <th>Modul</th>
                             <th>Aktivitas</th>
                             <th>Ringkasan</th>
+                            <th>Detail</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -103,6 +105,7 @@
                                     'custom_orders' => 'Custom Order',
                                     'production_orders' => 'Produksi',
                                     'ingredients' => 'Bahan Baku',
+                                    'ingredient_restocks' => 'Restock Bahan',
                                     'products' => 'Produk',
                                 ];
                                 $actionNames = [
@@ -110,22 +113,55 @@
                                     'updated' => 'Mengubah',
                                     'deleted' => 'Menghapus',
                                 ];
-                                $changes = json_decode($log->new_values ?: $log->old_values ?: '{}', true);
-                                $friendlyFields = [
-                                    'payment_status' => 'Status pembayaran',
-                                    'status' => 'Status',
-                                    'stock' => 'Stok',
-                                    'selling_price' => 'Harga jual',
-                                    'quantity' => 'Jumlah',
-                                    'hpp_per_unit' => 'HPP per unit',
-                                    'total_amount' => 'Total transaksi',
-                                    'delivered_at' => 'Tanggal penyerahan',
+                                $fieldNames = [
+                                    'branch_id' => 'Cabang', 'sale_date' => 'Tanggal penjualan',
+                                    'total_amount' => 'Total transaksi', 'payment_method' => 'Metode pembayaran',
+                                    'payment_status' => 'Status pembayaran', 'order_number' => 'Nomor pesanan',
+                                    'product_name' => 'Nama produk', 'quantity' => 'Jumlah',
+                                    'selling_price' => 'Harga jual', 'status' => 'Status',
+                                    'delivered_at' => 'Tanggal penyerahan', 'order_type' => 'Jenis produksi',
+                                    'product_variant_id' => 'ID varian produk', 'hpp_per_unit' => 'HPP per unit',
+                                    'name' => 'Nama', 'stock' => 'Stok', 'unit_cost' => 'Harga rata-rata per satuan',
+                                    'min_stock' => 'Minimum stok', 'ingredient_id' => 'ID bahan baku',
+                                    'unit_price' => 'Harga restock per satuan', 'total_cost' => 'Total biaya restock',
+                                    'restock_date' => 'Tanggal restock',
                                 ];
-                                $details = is_array($changes)
-                                    ? collect($changes)->keys()
-                                        ->map(fn($key) => $friendlyFields[$key] ?? str_replace('_', ' ', $key))
-                                        ->take(3)->implode(', ')
-                                    : '';
+                                $moneyFields = ['total_amount', 'selling_price', 'hpp_per_unit', 'unit_cost', 'unit_price', 'total_cost'];
+                                $oldValues = json_decode($log->old_values ?: '{}', true);
+                                $newValues = json_decode($log->new_values ?: '{}', true);
+                                $oldValues = is_array($oldValues) ? $oldValues : [];
+                                $newValues = is_array($newValues) ? $newValues : [];
+                                $changedFields = array_values(array_unique(array_merge(array_keys($oldValues), array_keys($newValues))));
+                                $ingredientId = $log->table_name === 'ingredient_restocks'
+                                    ? ($newValues['ingredient_id'] ?? $oldValues['ingredient_id'] ?? null)
+                                    : ($log->table_name === 'ingredients' ? $log->record_id : null);
+                                $ingredientInfo = $ingredientNames[(int) $ingredientId] ?? null;
+                                $ingredientLabel = $ingredientInfo['name'] ?? ('Bahan #' . ($ingredientId ?? $log->record_id));
+                                $ingredientUnit = $ingredientInfo['unit'] ?? '';
+                                $formatAuditValue = function ($field, $value) use ($moneyFields) {
+                                    if ($value === null || $value === '') return '-';
+                                    if (in_array($field, $moneyFields, true) && is_numeric($value)) {
+                                        return 'Rp ' . number_format((float) $value, 2, ',', '.');
+                                    }
+                                    if (is_bool($value)) return $value ? 'Ya' : 'Tidak';
+                                    if (is_numeric($value) && !in_array($field, ['branch_id', 'product_variant_id', 'ingredient_id'], true)) {
+                                        return rtrim(rtrim(number_format((float) $value, 3, ',', '.'), '0'), ',');
+                                    }
+                                    return is_scalar($value) ? (string) $value : json_encode($value, JSON_UNESCAPED_UNICODE);
+                                };
+                                $summary = match ($log->table_name) {
+                                    'ingredient_restocks' => 'Restock ' . $ingredientLabel . ': +' . $formatAuditValue('quantity', $newValues['quantity'] ?? $oldValues['quantity'] ?? null) . ' ' . $ingredientUnit,
+                                    'ingredients' => $ingredientLabel . ' — ' . (array_key_exists('stock', $newValues)
+                                        ? 'stok ' . $formatAuditValue('stock', $oldValues['stock'] ?? null) . ' → ' . $formatAuditValue('stock', $newValues['stock']) . ' ' . $ingredientUnit
+                                        : implode(', ', array_map(fn ($field) => $fieldNames[$field] ?? str_replace('_', ' ', $field), array_slice($changedFields, 0, 2)))),
+                                    'sales' => 'Transaksi #' . $log->record_id . (isset($newValues['total_amount']) ? ' · ' . $formatAuditValue('total_amount', $newValues['total_amount']) : '')
+                                        . (isset($newValues['payment_status']) ? ' · ' . $newValues['payment_status'] : ''),
+                                    'production_orders' => 'Produksi #' . $log->record_id . (isset($newValues['quantity']) ? ' · ' . $formatAuditValue('quantity', $newValues['quantity']) . ' pcs' : ''),
+                                    'custom_orders' => 'Pesanan ' . ($newValues['order_number'] ?? $oldValues['order_number'] ?? ('#' . $log->record_id)),
+                                    'products' => 'Produk ' . ($newValues['name'] ?? $oldValues['name'] ?? ('#' . $log->record_id)),
+                                    default => 'Data #' . $log->record_id,
+                                };
+                                $modalId = 'audit-detail-' . $log->id;
                             @endphp
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
@@ -142,16 +178,153 @@
                                         {{ $actionNames[$log->action] ?? ucfirst($log->action) }}
                                     </span>
                                 </td>
-                                <td>{{ '#' . $log->record_id }}{{ $details ? ' · ' . $details : '' }}</td>
+                                <td>{{ $summary }}</td>
+                                <td>
+                                    <button type="button" class="btn btn-info btn-sm" data-audit-open="{{ $modalId }}">Detail</button>
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
             </div>
+
+            {{-- Modal berada di luar tabel agar tidak diubah DataTables. --}}
+            @foreach ($logs as $log)
+                @php
+                    $oldValues = json_decode($log->old_values ?: '{}', true);
+                    $newValues = json_decode($log->new_values ?: '{}', true);
+                    $oldValues = is_array($oldValues) ? $oldValues : [];
+                    $newValues = is_array($newValues) ? $newValues : [];
+                    $fields = array_values(array_unique(array_merge(array_keys($oldValues), array_keys($newValues))));
+                    $fieldNames = [
+                        'branch_id' => 'ID Cabang', 'sale_date' => 'Tanggal Penjualan', 'total_amount' => 'Total Transaksi',
+                        'payment_method' => 'Metode Pembayaran', 'payment_status' => 'Status Pembayaran',
+                        'order_number' => 'Nomor Pesanan', 'product_name' => 'Nama Produk', 'quantity' => 'Jumlah',
+                        'selling_price' => 'Harga Jual', 'status' => 'Status', 'delivered_at' => 'Tanggal Penyerahan',
+                        'order_type' => 'Jenis Produksi', 'product_variant_id' => 'ID Varian Produk',
+                        'hpp_per_unit' => 'HPP per Unit', 'name' => 'Nama', 'stock' => 'Stok',
+                        'unit_cost' => 'Harga Rata-rata per Satuan', 'min_stock' => 'Minimum Stok',
+                        'ingredient_id' => 'ID Bahan Baku', 'unit_price' => 'Harga Restock per Satuan',
+                        'total_cost' => 'Total Biaya Restock', 'restock_date' => 'Tanggal Restock',
+                    ];
+                    $moneyFields = ['total_amount', 'selling_price', 'hpp_per_unit', 'unit_cost', 'unit_price', 'total_cost'];
+                    $formatValue = function ($field, $value) use ($moneyFields) {
+                        if ($value === null || $value === '') return '-';
+                        if (in_array($field, $moneyFields, true) && is_numeric($value)) return 'Rp ' . number_format((float) $value, 2, ',', '.');
+                        if (is_bool($value)) return $value ? 'Ya' : 'Tidak';
+                        if (is_numeric($value) && !in_array($field, ['branch_id','ingredient_id','product_variant_id'], true))
+                            return rtrim(rtrim(number_format((float) $value, 3, ',', '.'), '0'), ',');
+                        return is_scalar($value) ? (string) $value : json_encode($value, JSON_UNESCAPED_UNICODE);
+                    };
+                @endphp
+                <dialog class="audit-dialog" id="audit-detail-{{ $log->id }}"
+                    aria-labelledby="audit-title-{{ $log->id }}">
+                    <div class="audit-dialog-panel">
+                        <div class="audit-dialog-header">
+                            <div>
+                                <h5 class="audit-dialog-title" id="audit-title-{{ $log->id }}">Detail Aktivitas #{{ $log->id }}</h5>
+                                <div class="audit-dialog-subtitle">Riwayat perubahan data pada sistem bakery</div>
+                            </div>
+                            <button type="button" class="audit-dialog-x" data-audit-close aria-label="Tutup">&times;</button>
+                        </div>
+                        <div class="audit-dialog-body">
+                            <div class="audit-dialog-info-title">Informasi Aktivitas</div>
+                            <div class="row g-3 audit-dialog-info">
+                                    <div class="col-sm-6"><strong>Pengguna:</strong> {{ $log->user?->name ?? 'Pengguna terhapus' }}</div>
+                                    <div class="col-sm-6"><strong>Waktu:</strong> {{ \Illuminate\Support\Carbon::parse($log->created_at)->format('d/m/Y H:i:s') }}</div>
+                                    <div class="col-sm-6"><strong>Cabang:</strong> {{ $log->branch?->name ?? 'Umum' }}</div>
+                                    <div class="col-sm-6"><strong>Modul:</strong> {{ [
+                                        'sales' => 'POS', 'custom_orders' => 'Custom Order', 'production_orders' => 'Produksi',
+                                        'ingredients' => 'Bahan Baku', 'ingredient_restocks' => 'Restock Bahan', 'products' => 'Produk'
+                                    ][$log->table_name] ?? $log->table_name }}</div>
+                                    <div class="col-sm-6"><strong>Aksi:</strong> {{ [
+                                        'created' => 'Menambahkan', 'updated' => 'Mengubah', 'deleted' => 'Menghapus'
+                                    ][$log->action] ?? $log->action }}</div>
+                                    <div class="col-sm-6"><strong>ID data:</strong> #{{ $log->record_id }}</div>
+                                </div>
+                                <div class="audit-dialog-info-title audit-dialog-info-title-spaced">Rincian Perubahan</div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered align-middle mb-0 audit-dialog-table">
+                                        <thead class="table-light"><tr><th>Informasi</th><th>Nilai Lama</th><th>Nilai Baru</th></tr></thead>
+                                        <tbody>
+                                            @forelse ($fields as $field)
+                                                <tr>
+                                                    <td>{{ $fieldNames[$field] ?? str_replace('_', ' ', $field) }}</td>
+                                                    <td>{{ array_key_exists($field, $oldValues) ? $formatValue($field, $oldValues[$field]) : '—' }}</td>
+                                                    <td>{{ array_key_exists($field, $newValues) ? $formatValue($field, $newValues[$field]) : '—' }}</td>
+                                                </tr>
+                                            @empty
+                                                <tr><td colspan="3" class="text-center text-muted">Nilai lama/baru tidak tersedia pada log ini.</td></tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p class="audit-dialog-note">Hanya nilai yang tercatat pada waktu aktivitas dilakukan yang ditampilkan. Tanda — berarti data tidak tersedia.</p>
+                        </div>
+                        <div class="audit-dialog-footer">
+                            <button type="button" class="btn btn-dark btn-sm" data-audit-close>Tutup</button>
+                        </div>
+                    </div>
+                </dialog>
+            @endforeach
         </div>
     </div>
 
     <style>
+        /* Modal mandiri: tidak tergantung pada Bootstrap JS / modal Bootstrap CSS. */
+        dialog.audit-dialog {
+            box-sizing: border-box;
+            padding: 0 !important;
+            margin: auto;
+            border: none !important;
+            border-radius: 12px;
+            width: min(780px, calc(100vw - 32px));
+            max-width: 780px;
+            max-height: calc(100dvh - 36px);
+            background: #fff;
+            color: #332820;
+            box-shadow: 0 24px 70px rgba(32, 18, 12, .30);
+            overflow: hidden;
+        }
+        dialog.audit-dialog::backdrop { background: rgba(24, 18, 15, .56); }
+        .audit-dialog-panel { display: flex; flex-direction: column; max-height: calc(100dvh - 36px); background: white; }
+        .audit-dialog-header {
+            display: flex; align-items: flex-start; justify-content: space-between; gap: 20px;
+            padding: 20px 24px 18px !important;
+            background: #FAF8F5; border-bottom: 1px solid #E9DFD6;
+            flex-shrink: 0;
+        }
+        .audit-dialog-title { font-size: 19px; line-height: 1.35; font-weight: 650; color: #794330; margin: 0 0 4px; }
+        .audit-dialog-subtitle { font-size: 12px; line-height: 1.5; color: #77675d; }
+        .audit-dialog-x {
+            border: none; background: transparent; color: #77675d; border-radius: 6px;
+            font-size: 27px; line-height: 1; padding: 0 4px; cursor: pointer;
+        }
+        .audit-dialog-x:hover { color: #794330; background: #F3E7DA; }
+        .audit-dialog-body { padding: 22px 24px 24px !important; overflow-y: auto; min-height: 0; }
+        .audit-dialog-info-title { font-size: 13px; font-weight: 700; color: #794330; margin-bottom: 12px; }
+        .audit-dialog-info-title-spaced { margin-top: 26px; }
+        .audit-dialog-info { font-size: 13px; line-height: 1.7; color: #332820; }
+        .audit-dialog-info strong { font-weight: 650; color: #65564c; }
+        .audit-dialog-table { font-size: 13px; margin: 0; }
+        .audit-dialog-table th { background: #F3E7DA !important; color: #332820; font-weight: 650; }
+        .audit-dialog-table th, .audit-dialog-table td { padding: 11px 12px !important; vertical-align: middle; overflow-wrap: anywhere; }
+        .audit-dialog-note {
+            font-size: 12px; color: #77675d; line-height: 1.6;
+            margin: 14px 0 0; padding: 12px 14px; border-radius: 6px;
+            background: #FAF8F5; border: 1px solid #F3E7DA;
+        }
+        .audit-dialog-footer {
+            display: flex; justify-content: flex-end; align-items: center;
+            padding: 14px 24px !important; border-top: 1px solid #E9DFD6;
+            background: #fff; flex-shrink: 0;
+        }
+        @media (max-width: 575px) {
+            .audit-dialog-header { padding: 16px !important; }
+            .audit-dialog-body { padding: 16px !important; }
+            .audit-dialog-footer { padding: 12px 16px !important; }
+        }
+
         /* Kolom memakai lebar tetap, sehingga tidak bergeser saat berpindah halaman. */
         #auditLogsTable {
             table-layout: fixed;
@@ -208,6 +381,30 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            // Delegasi klik agar tombol tetap bekerja setelah tabel diolah DataTables.
+            document.addEventListener('click', function (event) {
+                const openButton = event.target.closest('[data-audit-open]');
+                if (openButton) {
+                    const dialog = document.getElementById(openButton.dataset.auditOpen);
+                    if (dialog && typeof dialog.showModal === 'function' && !dialog.open) {
+                        dialog.showModal();
+                    }
+                    return;
+                }
+
+                const closeButton = event.target.closest('[data-audit-close]');
+                if (closeButton) {
+                    const dialog = closeButton.closest('dialog.audit-dialog');
+                    if (dialog?.open) dialog.close();
+                    return;
+                }
+
+                // Klik pada area gelap di luar dialog juga menutup detail.
+                if (event.target.matches('dialog.audit-dialog') && event.target.open) {
+                    event.target.close();
+                }
+            });
+
             const form = document.getElementById('auditFilterForm');
             if (form) {
                 const from = form.querySelector('[name="start_date"]');

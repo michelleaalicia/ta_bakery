@@ -43,16 +43,19 @@ class LoginRequest extends FormRequest
         $this->ensureIsNotRateLimited();
 
         if (
-            !Auth::attempt([
-                'email' => $this->input('email'),
-                'password' => $this->input('password'),
-                'status' => 'active',
-            ], $this->boolean('remember'))
+            !Auth::attempt(
+                [
+                    'email' => $this->input('email'),
+                    'password' => $this->input('password'),
+                    'status' => 'active',
+                ],
+                $this->boolean('remember')
+            )
         ) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
-                'email' => 'Email atau password salah.',
+                'email' => 'Email atau password salah, atau akun Anda tidak aktif.',
             ]);
         }
 

@@ -122,6 +122,8 @@
                         <option value="">Semua Status</option>
                         <option value="Aman">Aman</option>
                         <option value="Menipis">Menipis</option>
+                        <option value="Di Bawah Minimum">Di Bawah Minimum</option>
+                        <option value="Belum Diatur">Belum Diatur</option>
                     </select>
                 </div>
 
@@ -157,7 +159,7 @@
                             <th>Nama Bahan</th>
                             <th>Cabang</th>
                             <th>Satuan</th>
-                            <th>Harga/Satuan</th>
+                            <th>Harga Rata-Rata/Satuan</th>
                             <th>Stok</th>
                             <th>Min. Stok</th>
                             <th>Status</th>
@@ -170,11 +172,11 @@
                             <tr>
                                 <td>{{ $loop->iteration }}</td>
 
-                                <td>{{ $ingredient->name }}</td>
+                                <td>{{ $ingredient->master?->name }}</td>
 
                                 <td>{{ $ingredient->branch?->name ?? 'Tanpa Cabang' }}</td>
 
-                                <td>{{ $ingredient->unit }}</td>
+                                <td>{{ $ingredient->master?->unit }}</td>
 
                                 <td data-order="{{ $ingredient->unit_cost }}">
                                     Rp {{ number_format($ingredient->unit_cost, 0, ',', '.') }}
@@ -189,14 +191,18 @@
                                 </td>
 
                                 <td>
-                                    @if ($ingredient->stock <= $ingredient->min_stock)
-                                        <span class="badge bg-secondary">
-                                            Menipis
-                                        </span>
+                                    @php
+                                        $stock = (float) $ingredient->stock;
+                                        $minimum = (float) $ingredient->min_stock;
+                                    @endphp
+                                    @if ($minimum <= 0)
+                                        <span class="badge bg-secondary">Belum Diatur</span>
+                                    @elseif ($stock < $minimum)
+                                        <span class="badge bg-danger">Di Bawah Minimum</span>
+                                    @elseif ($stock <= $minimum * 1.20)
+                                        <span class="badge bg-warning text-dark">Menipis</span>
                                     @else
-                                        <span class="badge bg-light text-dark border">
-                                            Aman
-                                        </span>
+                                        <span class="badge bg-success">Aman</span>
                                     @endif
                                 </td>
 

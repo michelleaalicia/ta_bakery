@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\BopInput;
 use App\Models\CustomOrder;
 use App\Models\Ingredient;
 use App\Models\ProductionOrder;
@@ -60,6 +61,17 @@ class CustomProductionController extends Controller
                 'notes' => 'Custom Order ' . $order->order_number . ' - ' . $order->product_name,
             ]);
 
+            // Salin rincian BOP estimasi sebagai rancangan biaya produksi Custom.
+            $estimatedDetails = $order->bopDetails()->get();
+            if ($estimatedDetails->isNotEmpty()) {
+                BopInput::save('production_order_id', $production->id, [
+                    'items' => $estimatedDetails->map(fn($item) => [
+                        'category' => $item->category,
+                        'amount' => $item->amount,
+                    ])->all(),
+                ]);
+            }
+
             // Nol di pivot adalah aktual yang belum dicatat, bukan estimasi.
             foreach ($order->materials as $material) {
                 $ingredient = $ingredients->get($material->ingredient_master_id);
@@ -99,7 +111,9 @@ class CustomProductionController extends Controller
             return back()->with('error', 'Biaya aktual hanya bisa diubah saat produksi berlangsung.');
         }
 
+        $bop = BopInput::prepare($request);
         $data = $request->validate([
+            'bop_cost' => ['required', 'numeric', 'min:0'],
             'materials' => ['required', 'array', 'min:1'],
             'materials.*' => ['required', 'numeric', 'min:0'],
             'labors' => ['required', 'array', 'min:1'],
@@ -113,13 +127,15 @@ class CustomProductionController extends Controller
             'extra_labors.*.labor_hours' => ['required', 'numeric', 'gt:0'],
         ]);
 
-        DB::transaction(function () use ($productionOrder, $data) {
+        DB::transaction(function () use ($productionOrder, $data, $bop) {
             $order = ProductionOrder::whereKey($productionOrder->id)->lockForUpdate()->firstOrFail();
             if ($order->order_type !== 'custom' || $order->status !== 'in_progress') {
                 throw ValidationException::withMessages(['status' => 'Status produksi sudah berubah.']);
             }
             $custom = CustomOrder::where('production_order_id', $order->id)->firstOrFail();
             $order->load(['ingredients', 'users']);
+            $order->update(['bop_cost' => $data['bop_cost'], 'hpp_per_unit' => 0]);
+            BopInput::save('production_order_id', $order->id, $bop);
 
             $existingMaterials = $order->ingredients->pluck('id')->map(fn($id) => (int) $id)->all();
             $existingUsers = $order->users->pluck('id')->map(fn($id) => (int) $id)->all();

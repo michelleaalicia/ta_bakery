@@ -100,7 +100,7 @@
                             <th>Deskripsi</th>
                             <th>Cabang</th>
                             <th>Penjualan</th>
-                            <th>Detail</th>
+                            <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -120,7 +120,7 @@
                                 <td>{{ $row['branch'] }}</td>
                                 <td data-order="{{ $row['amount'] }}">Rp {{ number_format($row['amount'], 0, ',', '.') }}</td>
                                 <td>
-                                    <a class="btn btn-outline-secondary btn-sm" href="{{ $row['url'] }}">Lihat</a>
+                                    <a class="btn btn-info btn-sm" href="{{ $row['url'] }}">Detail</a>
                                 </td>
                             </tr>
                         @endforeach

@@ -65,7 +65,7 @@ class CustomOrderPaymentController extends Controller
         $data = $request->validate([
             'payment_type' => ['required', 'in:dp,pelunasan'],
             'amount' => ['required', 'integer', 'min:1'],
-            'payment_method' => ['required', 'in:Tunai,QRIS,Transfer'],
+            'payment_method' => ['required', 'in:Tunai,Transfer'],
             'payment_date' => [
                 'required',
                 'date_format:Y-m-d',
@@ -116,6 +116,16 @@ class CustomOrderPaymentController extends Controller
                 if ($order->payments()->exists()) {
                     throw ValidationException::withMessages([
                         'payment_type' => 'DP sudah dicatat. Gunakan pembayaran pelunasan.',
+                    ]);
+                }
+
+                // DP minimal 10% dari total harga pesanan
+                $minimumDp = ceil((float) $order->selling_price * 0.10);
+
+                if ($amount < $minimumDp) {
+                    throw ValidationException::withMessages([
+                        'amount' => 'DP minimal 10% dari total harga pesanan, yaitu Rp '
+                            . number_format($minimumDp, 0, ',', '.'),
                     ]);
                 }
 

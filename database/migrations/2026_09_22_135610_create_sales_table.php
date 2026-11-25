@@ -12,10 +12,16 @@ return new class extends Migration {
     {
         Schema::create('sales', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('branch_id')->constrained('branches');
+            $table->foreignId('tenant_id')->nullable()->constrained('tenants')->nullOnDelete();
+            $table->foreignId('branch_id')->nullable()->constrained('branches');
             $table->date('sale_date');
             $table->decimal('total_amount', 15, 2);
+            $table->string('payment_method', 20)->default('cash');
+            $table->string('payment_status', 20)->default('paid');
+            $table->decimal('cash_received', 15, 2)->nullable();
+            $table->decimal('change_amount', 15, 2)->default(0);
             $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('updated_at')->nullable();
         });
     }
 

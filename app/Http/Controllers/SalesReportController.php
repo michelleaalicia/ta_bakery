@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Models\CustomOrder;
 use App\Models\Sale;
+use App\Support\DemoSaleFilter;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -57,7 +58,7 @@ class SalesReportController extends Controller
 
         if ($source !== 'custom') {
             // Penjualan POS hanya diakui setelah pembayaran terkonfirmasi.
-            $sales = Sale::query()
+            $sales = DemoSaleFilter::exclude(Sale::query())
                 ->with('branch:id,name')
                 ->where('tenant_id', $tenantId)
                 ->where('payment_status', 'paid')

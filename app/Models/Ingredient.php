@@ -10,8 +10,6 @@ class Ingredient extends Model
         'tenant_id',
         'ingredient_master_id',
         'branch_id',
-        'name',
-        'unit',
         'unit_cost',
         'stock',
         'min_stock',

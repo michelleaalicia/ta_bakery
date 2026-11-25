@@ -9,6 +9,25 @@
     <div class="card">
         <div class="card-body">
 
+            @if (session('error'))
+                <div class="alert alert-danger">{{ session('error') }}</div>
+            @endif
+            @if ($errors->any())
+                <div class="alert alert-danger">{{ $errors->first() }}</div>
+            @endif
+            @if ($forecastPrefill)
+                <div class="alert alert-info">
+                    <strong>Rencana berdasarkan rekomendasi Forecast DES</strong>
+                    <div class="small mt-1">
+                        Kebutuhan tambahan: <strong>{{ number_format($forecastPrefill['recommended_qty'], 0, ',', '.') }} pcs</strong>.
+                        Hasil satu resep: <strong>{{ rtrim(rtrim(number_format($forecastPrefill['recipe_yield'], 2, ',', '.'), '0'), ',') }} pcs</strong>.
+                        Saran: <strong>{{ $forecastPrefill['batch_count'] }} batch</strong> untuk menghasilkan
+                        <strong>{{ rtrim(rtrim(number_format($forecastPrefill['target_qty'], 2, ',', '.'), '0'), ',') }} pcs</strong>.
+                    </div>
+                    <div class="small mt-1">Periksa lagi bahan baku, karyawan, BOP, dan kapasitas produksi. Data belum disimpan.</div>
+                </div>
+            @endif
+
             <form action="{{ route('production_orders.store') }}" method="POST">
                 @csrf
 
@@ -24,7 +43,7 @@
                             <option value="">Pilih cabang</option>
 
                             @foreach ($branches as $branch)
-                                <option value="{{ $branch->id }}" {{ (auth()->user()->role?->name !== 'Owner' ? auth()->user()->branch_id : old('branch_id')) == $branch->id ? 'selected' : '' }}>
+                                <option value="{{ $branch->id }}" {{ (auth()->user()->role?->name !== 'Owner' ? auth()->user()->branch_id : old('branch_id', $forecastPrefill['branch_id'] ?? null)) == $branch->id ? 'selected' : '' }}>
                                     {{ $branch->name }}
                                 </option>
                             @endforeach
@@ -38,7 +57,7 @@
                     <select id="product_id" class="form-select" required>
                         <option value="">Pilih produk</option>
                         @foreach ($products as $product)
-                            <option value="{{ $product->id }}">
+                            <option value="{{ $product->id }}" @selected((int) old('product_id', $forecastPrefill['product_id'] ?? 0) === (int) $product->id)>
                                 {{ $product->name }}
                             </option>
                         @endforeach
@@ -96,7 +115,7 @@
                 <div class="mb-3">
                     <label class="form-label">Batch Produksi</label>
 
-                    <input type="text" name="batch_count" value="{{ old('batch_count', 1) }}" class="form-control"
+                    <input type="text" name="batch_count" value="{{ old('batch_count', $forecastPrefill['batch_count'] ?? 1) }}" class="form-control"
                         placeholder="Contoh: 2" required>
 
                     <div class="form-text">
@@ -111,22 +130,12 @@
                     </label>
 
                     <input type="date" id="production_date" name="production_date" class="form-control"
-                        value="{{ old('production_date', now()->format('Y-m-d')) }}" min="{{ now()->format('Y-m-d') }}"
+                        value="{{ old('production_date', $forecastPrefill['production_date'] ?? now()->format('Y-m-d')) }}"
                         required>
                 </div>
 
-                {{-- BOP --}}
-                <div class="mb-3">
-                    <label class="form-label">Biaya Overhead Produksi</label>
-
-                    <div class="input-group">
-                        <span class="input-group-text">Rp</span>
-
-                        <input type="text" name="bop_cost" id="bop_cost" value="{{ old('bop_cost') }}" class="form-control"
-                            placeholder="Contoh: 50000" required>
-                    </div>
-                </div>
-
+                {{-- BOP Total atau Rinci --}}
+                <x-bop-input :amount="null" />
 
                 {{-- Karyawan --}}
                 <div class="mb-3">
@@ -228,6 +237,7 @@
             const variantSelect = document.getElementById('product_variant_id');
 
             const variants = @json($variantOptions);
+            const initialVariantId = @json((string) old('product_variant_id', $forecastPrefill['variant_id'] ?? ''));
 
             function updateVariants() {
                 const productId = productSelect.value;
@@ -333,22 +343,12 @@
 
             // Siapkan pilihan ketika halaman pertama dibuka.
             updateVariants();
+            if (initialVariantId && Array.from(variantSelect.options).some(option => option.value === initialVariantId)) {
+                variantSelect.value = initialVariantId;
+            }
             updateRecipeInfo();
 
-            // Format BOP
-            const bopInput = document.getElementById('bop_cost');
 
-            if (bopInput) {
-                bopInput.addEventListener('input', function () {
-
-                    let value = this.value.replace(/\D/g, '');
-
-                    if (value) {
-                        this.value = new Intl.NumberFormat('id-ID').format(value);
-                    }
-
-                });
-            }
 
 
             // Data karyawan

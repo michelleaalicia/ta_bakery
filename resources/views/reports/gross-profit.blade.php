@@ -5,7 +5,6 @@
 
 @section('content')
     <div class="card mb-3">
-        <div class="card-header">Filter Periode</div>
         <div class="card-body">
             @if ($errors->any())
                 <div class="alert alert-danger">{{ $errors->first() }}</div>
@@ -93,7 +92,7 @@
                 <table id="grossProfitTable" class="table table-bordered table-hover align-middle w-100">
                     <thead class="table-light"><tr>
                         <th>No</th><th>Tanggal</th><th>Sumber</th><th>Referensi</th><th>Cabang</th>
-                        <th>Penjualan</th><th>HPP</th><th>Laba Kotor</th><th>Detail</th>
+                        <th>Penjualan</th><th>HPP</th><th>Laba Kotor</th><th>Aksi</th>
                     </tr></thead>
                     <tbody>
                         @foreach ($rows as $row)
@@ -106,7 +105,7 @@
                                 <td data-order="{{ $row['revenue'] }}">Rp {{ number_format($row['revenue'], 0, ',', '.') }}</td>
                                 <td data-order="{{ $row['cost'] ?? -1 }}">{{ $row['cost'] === null ? 'Belum tersedia' : 'Rp ' . number_format($row['cost'], 0, ',', '.') }}</td>
                                 <td data-order="{{ $row['gross'] ?? -1 }}">{{ $row['gross'] === null ? '-' : 'Rp ' . number_format($row['gross'], 0, ',', '.') }}</td>
-                                <td><a href="{{ $row['url'] }}" class="btn btn-sm btn-outline-secondary">Lihat</a></td>
+                                <td><a href="{{ $row['url'] }}" class="btn btn-info btn-sm"">Detail</a></td>
                             </tr>
                         @endforeach
                     </tbody>

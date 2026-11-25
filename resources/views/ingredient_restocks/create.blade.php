@@ -40,9 +40,9 @@
 
                         @foreach ($ingredients as $ingredient)
                             <option value="{{ $ingredient->id }}" data-branch-id="{{ $ingredient->branch_id }}">
-                                {{ $ingredient->name }}
+                                {{ $ingredient->master?->name }}
                                 | Stok: {{ rtrim(rtrim(number_format($ingredient->stock, 2, ',', '.'), '0'), ',') }}
-                                {{ $ingredient->unit }}
+                                {{ $ingredient->master?->unit }}
                             </option>
                         @endforeach
                     </select>
@@ -77,16 +77,9 @@
                 <div class="mb-3">
                     <label for="restock_date" class="form-label">Tanggal Restock</label>
 
-                    <select name="restock_date" id="restock_date" class="form-select" required>
-                        <option value="{{ now()->toDateString() }}" @selected(old('restock_date', now()->toDateString()) === now()->toDateString())>
-                            Hari Ini ({{ now()->translatedFormat('d F Y') }})
-                        </option>
-
-                        <option value="{{ now()->subDay()->toDateString() }}"
-                            @selected(old('restock_date') === now()->subDay()->toDateString())>
-                            Kemarin ({{ now()->subDay()->translatedFormat('d F Y') }})
-                        </option>
-                    </select>
+                    <input type="date" name="restock_date" id="restock_date" class="form-control"
+                        value="{{ old('restock_date', now()->toDateString()) }}"
+                        max="{{ now()->toDateString() }}" required>
 
                     @error('restock_date')
                         <div class="text-danger small mt-1">{{ $message }}</div>

@@ -12,8 +12,9 @@ return new class extends Migration {
     {
         Schema::create('production_orders', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('product_variant_id')->constrained('product_variants');
-            $table->foreignId('branch_id')->constrained('branches');
+            $table->foreignId('product_variant_id')->nullable()->constrained('product_variants');
+            $table->foreignId('branch_id')->nullable()->constrained('branches');
+            $table->decimal('batch_count', 10, 2)->default(1);
             $table->enum('order_type', ['regular', 'custom']);
             $table->decimal('quantity', 10, 2);
             $table->date('production_date');
@@ -24,6 +25,9 @@ return new class extends Migration {
                 'cancelled'
             ]);
             $table->decimal('bop_cost', 10, 2);
+            $table->decimal('hpp_per_unit', 15, 2)->default(0);
+            $table->decimal('profit_percentage', 5, 2)->default(0);
+            $table->decimal('selling_price', 15, 2)->default(0);
             $table->text('notes')->nullable();
             $table->timestamps();
         });

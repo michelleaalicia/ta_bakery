@@ -109,7 +109,7 @@
                             <label class="form-label">Metode Pembayaran</label>
                             <select name="payment_method" class="form-select" required>
                                 <option value="">Pilih Metode</option>
-                                @foreach (['Tunai', 'QRIS', 'Transfer'] as $method)
+                                @foreach (['Tunai', 'Transfer'] as $method)
                                     <option value="{{ $method }}" @selected(old('payment_method') === $method)>
                                         {{ $method }}
                                     </option>
@@ -119,9 +119,11 @@
 
                         <div class="col-md-6">
                             <label class="form-label">Nominal Pembayaran (Rp)</label>
-                            <input type="text" name="amount" id="paymentAmount" inputmode="numeric" class="form-control"
-                                value="{{ old('amount', $hasPayment ? (int) $remaining : '') }}" placeholder="Masukkan nominal"
-                                required>
+                            <input type="text" name="amount" data-rupiah id="paymentAmount" inputmode="numeric"
+                                class="form-control" value="{{ old('amount', $hasPayment ? (int) $remaining : '') }}"
+                                placeholder="Masukkan nominal" required>
+
+                            <div id="paymentHint" class="form-text"></div>
                         </div>
 
                         <div class="col-md-6">
@@ -210,6 +212,7 @@
 
                 if (isFullPayment) {
                     amountInput.value = String(remaining);
+                    amountInput.dispatchEvent(new Event('input', { bubbles: true }));
                     amountInput.readOnly = true;
 
                     hint.textContent =
@@ -223,18 +226,12 @@
                     }
 
                     hint.textContent =
-                        'DP harus lebih kecil dari total tagihan.';
+                        'DP minimal 10% dari harga pesanan.';
                 }
             }
 
             typeInput.addEventListener('change', function () {
                 updatePaymentType();
-            });
-
-            amountInput.addEventListener('input', function () {
-                if (!this.readOnly) {
-                    this.value = this.value.replace(/\D/g, '');
-                }
             });
 
             updatePaymentType(isOldSubmission);

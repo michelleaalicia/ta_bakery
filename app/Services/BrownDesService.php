@@ -6,11 +6,6 @@ use InvalidArgumentException;
 
 class BrownDesService
 {
-    /**
-     * Brown's Double Exponential Smoothing, initialized S'1 = S''1 = X1.
-     * Forecast in each history row is one-step-ahead from the previous period.
-     * MAPE excludes zero actuals; MAE includes them.
-     */
     public function calculate(array $values, float $alpha, int $horizon = 1): array
     {
         if (count($values) < 2 || $alpha <= 0 || $alpha >= 1 || $horizon < 1) {
@@ -81,8 +76,6 @@ class BrownDesService
         $best = null;
         foreach ([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9] as $alpha) {
             $candidate = $this->calculate($values, $alpha, $horizon);
-            // MAE is defined even if some or all actuals are zero.
-            // Consistent one-step-ahead criterion for every candidate.
             if ($best === null || $candidate['mae'] < $best['mae'] - 0.0000001) {
                 $best = $candidate;
             }

@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use App\Imports\UsersImport;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\UsersTemplateExport;
+use Illuminate\Database\QueryException;
 
 class UserController extends Controller
 {
@@ -292,10 +293,28 @@ class UserController extends Controller
             abort(403);
         }
 
-        $user->delete();
+        try {
+            $user->delete();
 
-        return redirect()
-            ->route('users.index')
-            ->with('success', 'Pengguna berhasil dihapus.');
+            return redirect()
+                ->route('users.index')
+                ->with('success', 'Pengguna berhasil dihapus.');
+
+        } catch (QueryException $e) {
+            if ((int) ($e->errorInfo[1] ?? 0) !== 1451) {
+                throw $e;
+            }
+
+            $user->update([
+                'status' => 'inactive',
+            ]);
+
+            return redirect()
+                ->route('users.index')
+                ->with(
+                    'success',
+                    'Pengguna memiliki riwayat transaksi atau produksi, sehingga akun dinonaktifkan untuk menjaga data historis.'
+                );
+        }
     }
 }

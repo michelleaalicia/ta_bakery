@@ -1,0 +1,15 @@
+/* Dipakai pada halaman autentikasi Tailwind, setelah stylesheet Vite. */
+body.bakery-auth { background: #FAF8F5 !important; color:#332820; }
+body.bakery-auth > div > div.bg-white { background:#fff !important; border-color:#E9DFD6 !important; box-shadow:0 8px 30px rgba(65,40,24,.06) !important; }
+body.bakery-auth .text-gray-900, body.bakery-auth .text-gray-800 { color:#332820 !important; }
+body.bakery-auth .text-gray-700 { color:#55483F !important; }
+body.bakery-auth .text-gray-500, body.bakery-auth .text-gray-400 { color:#89796C !important; }
+body.bakery-auth input:not([type=checkbox]), body.bakery-auth textarea {
+  border-color:#D8CCC2 !important; background:#fff; color:#332820;
+}
+body.bakery-auth input:focus, body.bakery-auth textarea:focus { border-color:#B88A63 !important; box-shadow:0 0 0 3px rgba(184,138,99,.15) !important; outline:none; }
+body.bakery-auth button[type=submit], body.bakery-auth a.bg-gray-900, body.bakery-auth a.bg-gray-800 {
+  background-color:#794330 !important; border-color:#794330 !important; color:#fff !important;
+}
+body.bakery-auth button[type=submit]:hover, body.bakery-auth a.bg-gray-900:hover { background-color:#643725 !important; }
+body.bakery-auth a:not([class*=bg-]) { color:#794330; }

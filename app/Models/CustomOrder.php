@@ -28,6 +28,11 @@ class CustomOrder extends Model
         'delivered_at',
     ];
 
+    public function bopDetails()
+    {
+        return $this->hasMany(\App\Models\BopDetail::class);
+    }
+
     public function tenant()
     {
         return $this->belongsTo(Tenant::class);

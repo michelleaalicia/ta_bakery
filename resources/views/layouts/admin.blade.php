@@ -155,6 +155,23 @@
             white-space: nowrap;
         }
     </style>
+    <link rel="stylesheet" href="{{ asset('css/bakery-theme.css') }}?v=1">
+    <style>
+        /* Simulator: ukuran mengikuti Tambah Produk (btn-dark btn-sm). */
+        .btn.btn-simulasi-harga,
+        .btn.btn-simulasi-harga:hover,
+        .btn.btn-simulasi-harga:focus,
+        .btn.btn-simulasi-harga:active,
+        .btn.btn-simulasi-harga:focus-visible {
+            background-color: #794330 !important;
+            border-color: #794330 !important;
+            color: #fff !important;
+            box-shadow: none !important;
+            outline: none !important;
+            transform: none !important;
+            transition: none !important;
+        }
+    </style>
 </head>
 
 <body class="layout-fixed sidebar-expand-lg bg-body-tertiary" data-bs-theme="light">
@@ -263,11 +280,13 @@
 
                         @if ($modules->contains('Manajemen Pengguna'))
                             <li class="nav-item">
+
                                 <a href="{{ route('users.index') }}"
-                                    class="nav-link {{ request()->routeIs('users.*') ? 'active' : '' }}">
+                                    class="nav-link {{ request()->routeIs('users.*') || request()->is('roles*', 'job-descriptions*') ? 'active' : '' }}">
                                     <i class="nav-icon bi bi-people"></i>
                                     <p>Manajemen Pengguna</p>
                                 </a>
+
                             </li>
                         @endif
 
@@ -466,7 +485,8 @@
                         {{-- AKUN --}}
                         <li class="nav-header">AKUN</li>
 
-                        <a href="{{ route('profile.password') }}" class="nav-link">
+                        <a href="{{ route('profile.password') }}"
+                            class="nav-link {{ request()->routeIs('profile.*') ? 'active' : '' }}">
                             <i class="nav-icon bi bi-person"></i>
                             <p>Profil</p>
                         </a>
@@ -515,6 +535,8 @@
     <script src="{{ asset('adminlte/js/adminlte.js') }}"></script>
 
     <script src="https://cdn.datatables.net/v/bs5/dt-3.1.4/datatables.min.js"></script>
+
+    <script src="{{ asset('js/rupiah-input.js') }}"></script>
 
     @stack('scripts')
 </body>

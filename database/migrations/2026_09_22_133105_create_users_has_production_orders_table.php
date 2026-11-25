@@ -20,7 +20,7 @@ return new class extends Migration {
                 'completed'
             ]);
             $table->decimal('labor_hours', 8, 2);
-            $table->decimal('labor_rate_per_hour', 15, 2);
+            $table->decimal('labor_rate_per_hour', 15, 2)->nullable();
             $table->timestamps();
 
             $table->primary(['user_id', 'production_order_id']);

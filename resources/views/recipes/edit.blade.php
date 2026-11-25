@@ -151,9 +151,9 @@
                                         <option value="">Pilih Bahan</option>
 
                                         @foreach ($ingredients as $ingredient)
-                                            <option value="{{ $ingredient->id }}" data-unit="{{ $ingredient->unit }}"
+                                            <option value="{{ $ingredient->id }}" data-unit="{{ ($ingredient->master?->unit) }}"
                                                 @selected($ingredient->id == ($formIngredient['ingredient_id'] ?? ''))>
-                                                {{ $ingredient->name }}
+                                                {{ ($ingredient->master?->name) }}
                                             </option>
                                         @endforeach
                                     </select>

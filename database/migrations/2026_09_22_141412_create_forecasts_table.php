@@ -12,7 +12,7 @@ return new class extends Migration {
     {
         Schema::create('forecasts', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('branch_id')->constrained('branches');
+            $table->foreignId('branch_id')->nullable()->constrained('branches');
             $table->foreignId('product_variant_id')->constrained('product_variants');
             $table->date('period');
             $table->decimal('alpha', 4, 3);

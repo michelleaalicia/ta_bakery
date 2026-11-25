@@ -71,101 +71,97 @@
                 </table>
             </div>
             <div class="d-flex flex-wrap gap-2 mt-3">
-
-                <a href="{{ route('sales.index') }}" class="btn btn-secondary">
-                    Kembali
-                </a>
-
+                <a href="{{ route('sales.index') }}" class="btn btn-secondary">Kembali</a>
                 @if ($sale->payment_status === 'paid')
-                    <a href="{{ route('sales.receipt', $sale) }}" target="_blank" rel="noopener" class="btn btn-dark">
-                        Cetak Nota PDF
-                    </a>
+                    <a href="{{ route('sales.receipt', $sale) }}" target="_blank" rel="noopener" class="btn btn-dark">Cetak Nota
+                        PDF</a>
                 @endif
-
-                @if ($sale->payment_method === 'qris' && $sale->payment_status === 'pending')
-                    <button type="button" id="confirmQrisButton" class="btn btn-success">
-                        Konfirmasi Pembayaran QRIS
-                    </button>
-
-                    <button type="button" id="cancelQrisButton" class="btn btn-outline-danger">
-                        Batalkan Transaksi
-                    </button>
+                @if ($sale->payment_method === 'qris' && $sale->payment_status === 'pending' && $sale->midtrans_order_id)
+                    <button type="button" id="checkMidtransButton" class="btn btn-primary">Cek Status Midtrans</button>
+                    <button type="button" id="cancelMidtransButton" class="btn btn-outline-danger">Batalkan via
+                        Midtrans</button>
                 @endif
-
             </div>
-
             @if ($sale->payment_method === 'qris' && $sale->payment_status === 'pending')
-                <div id="qrisActionMessage" class="alert d-none mt-3" role="alert"></div>
+                @if (!$sale->midtrans_order_id)
+                    <div class="alert alert-warning mt-3 mb-2">
+                        Transaksi QRIS ini belum menyimpan Order ID Midtrans. Salin Order ID dari detail transaksi di dashboard
+                        Midtrans Sandbox.
+                    </div>
+                    <div class="input-group mt-2" style="max-width: 680px;">
+                        <input id="legacyOrderIdInput" type="text" class="form-control"
+                            placeholder="Contoh: SIMB-{{ $sale->id }}-xxxxxxxxxxxx" autocomplete="off">
+                        <button id="attachMidtransButton" class="btn btn-dark" type="button">Cek Status</button>
+                    </div>
+                @endif
+                <div id="midtransActionMessage" class="alert d-none mt-3" role="alert"></div>
             @endif
         </div>
     </div>
 @endsection
+
 @push('scripts')
     @if ($sale->payment_method === 'qris' && $sale->payment_status === 'pending')
         <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                const confirmButton = document.getElementById('confirmQrisButton');
-                const cancelButton = document.getElementById('cancelQrisButton');
-                const message = document.getElementById('qrisActionMessage');
-
-                const confirmUrl = @json(route('pos.confirm-payment', $sale));
-                const cancelUrl = @json(route('pos.cancel-payment', $sale));
+            document.addEventListener('DOMContentLoaded', () => {
+                const statusButton = document.getElementById('checkMidtransButton');
+                const cancelButton = document.getElementById('cancelMidtransButton');
+                const attachButton = document.getElementById('attachMidtransButton');
+                const legacyInput = document.getElementById('legacyOrderIdInput');
+                const message = document.getElementById('midtransActionMessage');
                 const csrfToken = @json(csrf_token());
+                const statusUrl = @json(route('pos.qris-status', $sale));
+                const cancelUrl = @json(route('pos.midtrans-cancel', $sale));
+                const attachUrl = @json(route('pos.attach-midtrans-order', $sale));
+                const controls = [statusButton, cancelButton, attachButton, legacyInput].filter(Boolean);
 
-                async function processPayment(url, question) {
-                    if (!confirm(question)) return;
-
-                    confirmButton.disabled = true;
-                    cancelButton.disabled = true;
-
+                async function run(url, method = 'GET', body = null) {
+                    controls.forEach(el => el.disabled = true);
                     message.className = 'alert d-none mt-3';
                     message.textContent = '';
-
                     try {
                         const response = await fetch(url, {
-                            method: 'POST',
+                            method,
                             credentials: 'same-origin',
                             headers: {
-                                'X-CSRF-TOKEN': csrfToken,
                                 'Accept': 'application/json',
-                                'X-Requested-With': 'XMLHttpRequest'
-                            }
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': csrfToken,
+                                ...(body ? { 'Content-Type': 'application/json' } : {}),
+                            },
+                            ...(body ? { body: JSON.stringify(body) } : {}),
                         });
-
-                        const result = await response.json();
-
+                        const data = await response.json();
                         if (!response.ok) {
-                            const firstError = result.errors
-                                ? Object.values(result.errors).flat()[0]
-                                : null;
-
-                            throw new Error(
-                                firstError || result.message || 'Proses pembayaran gagal.'
-                            );
+                            throw new Error(data.message || Object.values(data.errors || {}).flat()[0] || 'Proses gagal.');
                         }
-
-                        window.location.reload();
+                        if (data.payment_status && data.payment_status !== 'pending') {
+                            window.location.reload();
+                            return;
+                        }
+                        message.textContent = data.message || 'Status masih Menunggu. Belum ada pembayaran berhasil.';
+                        message.className = 'alert alert-info mt-3';
                     } catch (error) {
-                        message.textContent = error.message;
+                        message.textContent = error.message || 'Tidak dapat memeriksa Midtrans.';
                         message.className = 'alert alert-danger mt-3';
-
-                        confirmButton.disabled = false;
-                        cancelButton.disabled = false;
+                    } finally {
+                        controls.forEach(el => el.disabled = false);
                     }
                 }
-
-                confirmButton.addEventListener('click', function () {
-                    processPayment(
-                        confirmUrl,
-                        'Pastikan pembayaran QRIS sudah benar-benar diterima. Konfirmasi sekarang?'
-                    );
+                statusButton?.addEventListener('click', () => run(statusUrl));
+                cancelButton?.addEventListener('click', () => {
+                    if (confirm('Batalkan transaksi QRIS ini melalui Midtrans? Pembayaran yang sudah berhasil tidak dapat dibatalkan lewat tombol ini.')) {
+                        run(cancelUrl, 'POST');
+                    }
                 });
-
-                cancelButton.addEventListener('click', function () {
-                    processPayment(
-                        cancelUrl,
-                        'Yakin ingin membatalkan transaksi QRIS ini?'
-                    );
+                attachButton?.addEventListener('click', () => {
+                    const midtrans_order_id = legacyInput.value.trim();
+                    if (!midtrans_order_id) {
+                        message.textContent = 'Isi Order ID lengkap dari dashboard Midtrans.';
+                        message.className = 'alert alert-warning mt-3';
+                        return;
+                    }
+                    run(attachUrl, 'POST', { midtrans_order_id });
                 });
             });
         </script>
